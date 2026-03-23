@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TUFI Tools</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="layout">
+
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-inner">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-icon">T</div>
+          <div class="brand-text">
+            <span class="brand-name">TUFI</span>
+            <span class="brand-sub">Tools</span>
+          </div>
+        </div>
+        <button class="collapse-btn" id="collapseBtn" title="Colapsar">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-label">Herramientas</div>
+        <button class="nav-btn active" data-view="formcontact" data-tooltip="Form Contact">
+          <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 9h18M9 21V9"/></svg></span>
+          <span class="nav-text">Form Contact</span>
+        </button>
+        <button class="nav-btn" data-view="convertpdf" data-tooltip="IMG → PDF">
+          <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg></span>
+          <span class="nav-text">IMG → PDF</span>
+        </button>
+        <button class="nav-btn" data-view="referencias" data-tooltip="Referencias">
+          <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></span>
+          <span class="nav-text">Referencias</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="btn-clear-all" id="clearAllBtn" title="Limpiar todos los datos">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
+          <span class="nav-text">Limpiar Todo</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ========== MAIN ========== -->
+  <main class="main" id="mainContent">
+
+    <!-- VIEW 1: FORM CONTACT -->
+    <section class="view active" id="view-formcontact">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">Form Contact</h1>
+          <p class="view-subtitle">Solicitud de crédito — TUFI</p>
+        </div>
+      </div>
+
+      <!-- PANEL OCR -->
+      <div class="ocr-panel">
+        <button class="ocr-toggle" id="ocrToggle">
+          <span class="ocr-toggle-left">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+            Escanear Cédula de Identidad
+            <span class="ocr-badge">OCR</span>
+          </span>
+          <svg class="ocr-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+
+        <div class="ocr-body" id="ocrBody" style="display:none">
+          <div class="ocr-inner">
+
+            <div class="ocr-left">
+              <div class="ocr-dropzone" id="ocrDropzone">
+                <input type="file" id="ocrFileInput" accept="image/*" style="display:none">
+                <div class="ocr-dz-content" id="ocrDzContent">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h.01M14 18h.01M18 14h.01M18 18h.01"/></svg>
+                  <p>Arrastrá la foto de la cédula<br>o <strong>hacé clic</strong> para seleccionar</p>
+                  <p style="font-size:11px;color:var(--text-muted)">También podés <kbd>Ctrl+V</kbd></p>
+                </div>
+                <img id="ocrPreview" style="display:none" alt="Preview">
+              </div>
+            </div>
+
+            <div class="ocr-right">
+              <button class="btn btn-primary" id="ocrScanBtn" disabled>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                Escanear
+              </button>
+              <div class="ocr-status" id="ocrStatus">Cargá una imagen para comenzar.</div>
+              <div class="ocr-fields" id="ocrFields"></div>
+              <button class="btn btn-secondary" id="ocrApplyBtn" style="display:none">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                Aplicar al formulario
+              </button>
+            </div>
+
+          </div>
+          <p class="ocr-note">⚠ El OCR puede tener imprecisiones. Revisá siempre los datos antes de enviar.</p>
+        </div>
+      </div>
+      <!-- /OCR PANEL -->
+
+      <!-- FORMULARIO -->
+      <div class="form-container">
+        <form id="creditForm" autocomplete="off">
+
+          <div class="form-section">
+            <div class="section-label">Datos Personales</div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="fc-nombres">Nombres</label>
+                <input type="text" id="fc-nombres" placeholder="Ej: Juan Carlos">
+              </div>
+              <div class="field">
+                <label for="fc-apellidos">Apellidos</label>
+                <input type="text" id="fc-apellidos" placeholder="Ej: González López">
+              </div>
+              <div class="field">
+                <label for="fc-cedula">Cédula Nro.</label>
+                <input type="text" id="fc-cedula" placeholder="Ej: 4.123.456">
+              </div>
+              <div class="field">
+                <label for="fc-fechanac">Fecha de nacimiento</label>
+                <input type="text" id="fc-fechanac" placeholder="DD/MM/AAAA">
+              </div>
+              <div class="field">
+                <label for="fc-estadocivil">Estado civil</label>
+                <select id="fc-estadocivil">
+                  <option value="">— Seleccionar —</option>
+                  <option selected>Soltero/a</option>
+                  <option>Casado/a</option>
+                  <option>Divorciado/a</option>
+                  <option>Viudo/a</option>
+                  <option>Unión libre</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="fc-celular">Celular</label>
+                <input type="text" id="fc-celular" placeholder="Ej: 0981 123 456">
+              </div>
+              <div class="field ac-wrap">
+                <label for="fc-ciudad-p">Ciudad</label>
+                <input type="text" id="fc-ciudad-p" placeholder="Escribí para buscar…" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="fc-barrio-p">Barrio</label>
+                <input type="text" id="fc-barrio-p" placeholder="Ej: Villa Aurelia">
+              </div>
+              <div class="field field-full">
+                <label for="fc-direccion-p">Dirección</label>
+                <input type="text" id="fc-direccion-p" placeholder="Ej: Av. España 1234 c/ Guaraní">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-label">Datos Laborales</div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="fc-empresa">Empresa</label>
+                <input type="text" id="fc-empresa" placeholder="Nombre de la empresa">
+              </div>
+              <div class="field">
+                <label for="fc-salario">Salario</label>
+                <input type="text" id="fc-salario" placeholder="Ej: 2.500.000 Gs.">
+              </div>
+              <div class="field ac-wrap">
+                <label for="fc-ciudad-l">Ciudad</label>
+                <input type="text" id="fc-ciudad-l" placeholder="Escribí para buscar…" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="fc-barrio-l">Barrio</label>
+                <input type="text" id="fc-barrio-l" placeholder="Ej: Villa Morra">
+              </div>
+              <div class="field field-full">
+                <label for="fc-direccion-l">Dirección</label>
+                <input type="text" id="fc-direccion-l" placeholder="Dirección de la empresa">
+              </div>
+              <div class="field">
+                <label for="fc-lineabaja">Línea baja</label>
+                <input type="text" id="fc-lineabaja" placeholder="Ej: 0800 xxx xxx">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-label">Referencias Personales</div>
+            <div class="form-grid">
+              <div class="field field-full">
+                <label for="fc-referencias">Referencias (Nombre – Relación – Celular)</label>
+                <textarea id="fc-referencias" rows="3" placeholder="Ej: María López – Hermana – 0981 000 111&#10;Carlos Díaz – Amigo – 0991 222 333"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-label">Solicitud</div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="fc-monto">Monto Solicitado</label>
+                <input type="text" id="fc-monto" placeholder="Ej: 5.000.000 Gs.">
+              </div>
+              <div class="field">
+                <label for="fc-plazo">Plazo</label>
+                <input type="text" id="fc-plazo" placeholder="Ej: 12 meses">
+              </div>
+            </div>
+          </div>
+
+        </form>
+
+        <!-- BOTONES AL FONDO -->
+        <div class="form-footer">
+          <button class="btn btn-ghost" id="fc-clear">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
+            Limpiar
+          </button>
+          <div class="form-footer-right">
+            <button class="btn btn-secondary" id="fc-copy">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copiar
+            </button>
+            <button class="btn btn-primary" id="fc-download">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Descargar .txt
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- VIEW 2: IMG → PDF -->
+    <section class="view" id="view-convertpdf">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">IMG → PDF</h1>
+          <p class="view-subtitle">Imágenes a PDF A4 horizontal — auto-rotación de verticales</p>
+        </div>
+        <div class="view-actions">
+          <button class="btn btn-ghost" id="pdf-clear">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
+            Limpiar
+          </button>
+          <button class="btn btn-primary" id="pdf-convert" disabled>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>
+            <span id="pdf-convert-label">Convertir y Descargar</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="pdf-container">
+        <div class="pdf-config">
+          <div class="field">
+            <label for="pdf-filename">Nombre del archivo</label>
+            <div class="filename-group">
+              <input type="text" id="pdf-filename" placeholder="mi-documento" value="documento">
+              <span class="filename-ext">.pdf</span>
+            </div>
+          </div>
+          <div class="config-badges">
+            <span class="badge">A4</span>
+            <span class="badge">Horizontal</span>
+            <span class="badge">297 × 210 mm</span>
+            <span class="badge">Sin márgenes</span>
+            <span class="badge">↻ Auto-rotación</span>
+          </div>
+        </div>
+
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
+          <div class="dropzone-inner">
+            <div class="dz-icon">
+              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <p class="dz-title">Arrastrá imágenes aquí</p>
+            <p class="dz-sub">PNG, JPG, WEBP · <kbd>Ctrl+V</kbd> para pegar · Las imágenes verticales se rotan a horizontal automáticamente</p>
+            <button type="button" class="btn btn-secondary dz-btn" id="dz-select-btn">Seleccionar archivos</button>
+          </div>
+        </div>
+
+        <div class="preview-wrapper" id="previewWrapper" style="display:none">
+          <div class="preview-bar">
+            <span class="preview-count" id="previewCount">0 imágenes</span>
+            <button class="btn-link" id="addMoreBtn">+ Agregar más</button>
+          </div>
+          <div class="preview-grid" id="previewGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: REFERENCIAS -->
+    <section class="view" id="view-referencias">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">Referencias</h1>
+          <p class="view-subtitle">Links de consulta IPS, servicios y guías de trabajo</p>
+        </div>
+      </div>
+      <div class="ref-container">
+
+        <!-- ── GRUPO: IPS ── -->
+        <div class="ref-group">
+          <div class="ref-group-title">IPS — Consultas en Línea</div>
+          <div class="ref-list">
+
+            <a class="ref-card" href="https://servicios.ips.gov.py/compder/consulta_comprobacion.php" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge">A</div>
+              <div class="ref-info">
+                <div class="ref-title">Consulta de Continuidad Laboral</div>
+                <div class="ref-desc">Comprobación de continuidad laboral IPS</div>
+                <div class="ref-url">servicios.ips.gov.py › compder › consulta_comprobacion</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://servicios.ips.gov.py/bcp/consultaCertReposo.php" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge">B</div>
+              <div class="ref-info">
+                <div class="ref-title">Consulta General ID Empleador — Acecot</div>
+                <div class="ref-desc">Certificado de reposo / URL Acecot BCP</div>
+                <div class="ref-url">servicios.ips.gov.py › bcp › consultaCertReposo</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://servicios.ips.gov.py/constancia_empleador/consEmpleador.php" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge">C</div>
+              <div class="ref-info">
+                <div class="ref-title">Constancia de Empleador</div>
+                <div class="ref-desc">Consulta de constancia de empleador IPS</div>
+                <div class="ref-url">servicios.ips.gov.py › constancia_empleador › consEmpleador</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://servicios.ips.gov.py/constancias_aop/index.php?constancia=noestarasegurado" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge">D</div>
+              <div class="ref-info">
+                <div class="ref-title">Constancia No Asegurados</div>
+                <div class="ref-desc">Constancia de no estar asegurado en IPS</div>
+                <div class="ref-url">servicios.ips.gov.py › constancias_aop › noestarasegurado</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+          </div>
+        </div>
+
+        <!-- ── GRUPO: FUNCIONARIOS ── -->
+        <div class="ref-group">
+          <div class="ref-group-title">Funcionarios Públicos</div>
+          <div class="ref-list">
+
+            <a class="ref-card" href="https://datos.sfp.gov.py/data/funcionarios" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge">1</div>
+              <div class="ref-info">
+                <div class="ref-title">Funcionarios — SFP</div>
+                <div class="ref-desc">Datos de funcionarios públicos — Secretaría de la Función Pública</div>
+                <div class="ref-url">datos.sfp.gov.py › data › funcionarios</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://datos.hacienda.gov.py/data/nomina" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge">2</div>
+              <div class="ref-info">
+                <div class="ref-title">Funcionarios — Hacienda (Nómina)</div>
+                <div class="ref-desc">Nómina de funcionarios — Ministerio de Hacienda</div>
+                <div class="ref-url">datos.hacienda.gov.py › data › nomina</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+          </div>
+        </div>
+
+        <!-- ── GRUPO: DESEMBOLSO ── -->
+        <div class="ref-group">
+          <div class="ref-group-title">Desembolso — Sistemas de Entidades</div>
+          <div class="ref-list">
+
+            <a  class="ref-card" href="http://44.223.113.242/sir/login.php" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--internal">1</div>
+              <div class="ref-info">
+                <div class="ref-title">Credi Solución — SIR</div>
+                <div class="ref-desc">Sistema interno SIR — Credi Solución</div>
+                <div class="ref-url">44.223.113.242 › sir › login.php</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://cheduoaliados.carsa.com.py" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">2</div>
+              <div class="ref-info">
+                <div class="ref-title">Carsa</div>
+                <div class="ref-desc">Portal de aliados Carsa</div>
+                <div class="ref-url">cheduoaliados.carsa.com.py</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="http://10.1.253.1:9180/sgc/servlet/py.com.negofin.wcuentasdsp" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">3</div>
+              <div class="ref-info">
+                <div class="ref-title">CrediMarket — SGC</div>
+                <div class="ref-desc">Sistema de gestión de créditos — Red interna</div>
+                <div class="ref-url">10.1.253.1:9180 › sgc › wcuentasdsp</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <div class="ref-card ref-card--internal">
+              <div class="ref-badge ref-badge--blue">4</div>
+              <div class="ref-info">
+                <div class="ref-title">Japonesa — Validador Interactivo 2.0</div>
+                <div class="ref-desc">Sign In — Financiera Paraguayo Japonesa</div>
+                <div class="ref-tag">Sistema interno</div>
+              </div>
+            </div>
+
+            <a class="ref-card" href="https://infonet.com.py/sessions/otp" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">5</div>
+              <div class="ref-info">
+                <div class="ref-title">Pagomóvil — Infonet</div>
+                <div class="ref-desc">Acceso al portal Pagomóvil vía Infonet</div>
+                <div class="ref-url">infonet.com.py › sessions › otp</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <div class="ref-card ref-card--internal">
+              <div class="ref-badge ref-badge--blue">6</div>
+              <div class="ref-info">
+                <div class="ref-title">Solar — Web y AnyDesk</div>
+                <div class="ref-desc">Banco Solar — Acceso vía web o AnyDesk</div>
+                <div class="ref-tag">Ver acceso con supervisor</div>
+              </div>
+            </div>
+
+            <div class="ref-card ref-card--internal">
+              <div class="ref-badge ref-badge--blue">7</div>
+              <div class="ref-info">
+                <div class="ref-title">TuFinanciera — Aspirantes</div>
+                <div class="ref-desc">Carga de solicitudes en sistema Aspirantes</div>
+                <div class="ref-tag">Sistema interno</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── GRUPO: PREGUNTAS FRECUENTES ── -->
+        <div class="ref-group">
+          <div class="ref-group-title">Guía Operativa — Preguntas Frecuentes</div>
+          <div class="faq-list">
+
+            <!-- FAQ 1 -->
+            <div class="faq-item">
+              <button class="faq-trigger" data-faq="1">
+                <span class="faq-num">1</span>
+                <span class="faq-q">¿Cómo quitarle la cédula a un cliente? 🤔</span>
+                <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="faq-body" id="faq-1" style="display:none">
+                <div class="faq-step"><span class="step-tag">Paso 1</span> Mensaje de apertura → Cliente responde</div>
+                <div class="faq-step"><span class="step-tag">Paso 2</span> Requisitos → Cliente responde</div>
+                <div class="faq-step"><span class="step-tag">Paso 3</span> Cédula → Cliente responde <em>(filtrar)</em></div>
+              </div>
+            </div>
+
+            <!-- FAQ 2 -->
+            <div class="faq-item">
+              <button class="faq-trigger" data-faq="2">
+                <span class="faq-num">2</span>
+                <span class="faq-q">Paso 1 — Ver que cuente con los requisitos</span>
+                <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="faq-body" id="faq-2" style="display:none">
+                <p class="faq-intro">¿Cuáles son los requisitos para acceder a un crédito?</p>
+                <div class="faq-step"><span class="step-tag req">IPS</span> Contar con IPS (mínimo 6 aportes)</div>
+                <div class="faq-step"><span class="step-tag req">Público</span> Funcionarios públicos (nombrados y contratados)</div>
+                <div class="faq-step"><span class="step-tag req">Profesional</span> Profesionales independientes — abogados, contadores, doctores (título universitario obligatorio)</div>
+                <div class="faq-step"><span class="step-tag req">IVA</span> Asalariados con IVA — empleados de empresas privadas que emiten factura legal para el cobro de su salario/comisiones</div>
+              </div>
+            </div>
+
+            <!-- FAQ 3 -->
+            <div class="faq-item">
+              <button class="faq-trigger" data-faq="3">
+                <span class="faq-num">3</span>
+                <span class="faq-q">Paso 2 — Encontrar en qué entidad cargar la solicitud</span>
+                <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="faq-body" id="faq-3" style="display:none">
+                <p class="faq-intro">¿Cuál es nuestro objetivo?</p>
+                <p class="faq-text">Encontrar <strong>dónde cargar la solicitud</strong> de nuestro cliente según su perfil y disponibilidad en cada entidad.</p>
+              </div>
+            </div>
+
+            <!-- FAQ 4 -->
+            <div class="faq-item">
+              <button class="faq-trigger" data-faq="4">
+                <span class="faq-num">4</span>
+                <span class="faq-q">Empresas con las que trabajamos</span>
+                <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="faq-body" id="faq-4" style="display:none">
+                <div class="faq-entity-list">
+                  <div class="faq-entity"><span class="entity-name">Tu Financiera</span><span class="entity-note">Ver en sistema</span></div>
+                  <div class="faq-entity"><span class="entity-name">Fin. Paraguayo Japonesa</span><span class="entity-note">Ver en sistema</span></div>
+                  <div class="faq-entity"><span class="entity-name">Banco Solar</span><span class="entity-note">Consulta en Pago Móvil y luego en grupo de WhatsApp</span></div>
+                  <div class="faq-entity"><span class="entity-name">CrediSolución</span><span class="entity-note">Ver en AnyDesk</span></div>
+                  <div class="faq-entity"><span class="entity-name">Carsa</span><span class="entity-note">Consultar en sistema. Si aparece como nuevo, consultar en grupo</span></div>
+                </div>
+                <div class="faq-divider"></div>
+                <p class="faq-subtitle">Códigos Tu Financiera</p>
+                <div class="faq-codes">
+                  <div class="faq-code"><span class="code-num">311</span><span>Renovación</span></div>
+                  <div class="faq-code"><span class="code-num">210</span><span>Renovación</span></div>
+                  <div class="faq-code"><span class="code-num">211</span><span>Renovación</span></div>
+                  <div class="faq-code"><span class="code-num">201</span><span>Préstamo nuevo</span></div>
+                  <div class="faq-code"><span class="code-num">301</span><span>Mango (no es cliente)</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- FAQ 5 -->
+            <div class="faq-item">
+              <button class="faq-trigger" data-faq="5">
+                <span class="faq-num">5</span>
+                <span class="faq-q">Tipos de seguro en IPS</span>
+                <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="faq-body" id="faq-5" style="display:none">
+                <div class="faq-type-list">
+                  <div class="faq-type-item">
+                    <div class="faq-type-name">Cotizante General</div>
+                    <div class="faq-type-desc">Sueldo fijo.</div>
+                  </div>
+                  <div class="faq-type-item">
+                    <div class="faq-type-name">Cotizante Jornalero</div>
+                    <div class="faq-type-desc">Cobra por hora/días trabajados. Siempre pedir 3 últimos comprobantes (boletas y/o liquidaciones). Califica si gana más del mínimo.</div>
+                  </div>
+                  <div class="faq-type-item">
+                    <div class="faq-type-name">Seguro Doméstico</div>
+                    <div class="faq-type-desc">Empleados domésticos (ama de llaves, jardinero, chofer, etc.). Ver que gane más del mínimo.</div>
+                  </div>
+                  <div class="faq-type-item">
+                    <div class="faq-type-name">Cotizante Zafrero</div>
+                    <div class="faq-type-desc">Ver que aporte por más del sueldo mínimo.</div>
+                  </div>
+                  <div class="faq-type-item">
+                    <div class="faq-type-name">Ganadería</div>
+                    <div class="faq-type-desc">Empleados de estancias. Ver que aporte por más del sueldo mínimo.</div>
+                  </div>
+                  <div class="faq-type-item">
+                    <div class="faq-type-name">Aprendices</div>
+                    <div class="faq-type-desc">Cada empresa tiene políticas diferentes. Consultar al supervisor/compañero. Ver que aporte por más del mínimo.</div>
+                  </div>
+                  <div class="faq-type-item">
+                    <div class="faq-type-name">Tiempo Parcial</div>
+                    <div class="faq-type-desc">Trabajan medio día. Suelen aportar por menos del mínimo. Ver boletas.</div>
+                  </div>
+                  <div class="faq-type-item">
+                    <div class="faq-type-name">Chofer de Ómnibus</div>
+                    <div class="faq-type-desc">Choferes de colectivos de corta distancia (Línea 48, Línea 27, etc.).</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- FAQ 6 -->
+            <div class="faq-item">
+              <button class="faq-trigger" data-faq="6">
+                <span class="faq-num">6</span>
+                <span class="faq-q">Tipos de Funcionarios Públicos</span>
+                <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="faq-body" id="faq-6" style="display:none">
+                <div class="faq-type-list">
+                  <div class="faq-type-item faq-type-item--highlight">
+                    <div class="faq-type-name">Nombrados</div>
+                    <div class="faq-type-desc">Califican en todos los lados.</div>
+                  </div>
+                  <div class="faq-type-item">
+                    <div class="faq-type-name">Contratados — Política especial por empresa</div>
+                    <div class="faq-type-desc">Cada entidad tiene requisitos de antigüedad distintos.</div>
+                  </div>
+                </div>
+                <div class="faq-divider"></div>
+                <p class="faq-subtitle">Antigüedad requerida para contratados</p>
+                <div class="faq-antigüedad-list">
+                  <div class="faq-antig-item"><span class="antig-entity">Carsa</span><span class="antig-req">2 años de antigüedad</span></div>
+                  <div class="faq-antig-item"><span class="antig-entity">CrediSolución</span><span class="antig-req">1 año de antigüedad</span></div>
+                  <div class="faq-antig-item"><span class="antig-entity">Banco Solar</span><span class="antig-req">3 años de antigüedad</span></div>
+                  <div class="faq-antig-item"><span class="antig-entity">TuFi</span><span class="antig-req">Califica presentando contrato</span></div>
+                  <div class="faq-antig-item"><span class="antig-entity">Japonesa</span><span class="antig-req">8 meses de antigüedad</span></div>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /faq-list -->
+        </div><!-- /ref-group preguntas -->
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Botón scroll to top -->
+<button class="scroll-top-btn" id="scrollTopBtn" title="Ir al inicio">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 15l-6-6-6 6"/></svg>
+</button>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- CDN externos -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+
+<!-- Módulos TUFI -->
+<script src="js/app-core.js"></script>
+<script src="js/app-geo.js"></script>
+<script src="js/app-formcontact.js"></script>
+<script src="js/app-pdf.js"></script>
+</body>
+</html>

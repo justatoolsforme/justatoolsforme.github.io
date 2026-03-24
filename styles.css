@@ -682,3 +682,590 @@ a.ref-card:hover .ref-arrow { color: var(--accent); }
   .sidebar .brand-text, .sidebar .nav-text { opacity: 0; max-width: 0; }
   .scroll-top-btn { bottom: 16px; right: 16px; }
 }
+
+.pipeline-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+ 
+.pipeline-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+ 
+.pipeline-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  cursor: pointer;
+  transition: all .18s;
+  white-space: nowrap;
+}
+.pipeline-tab:hover { border-color: var(--accent); color: var(--text); }
+.pipeline-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+ 
+.pipe-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-proceso  { background: #60a5fa; }
+.dot-aprobado { background: #34d399; }
+.dot-oferta   { background: #f59e0b; }
+.dot-nuevos   { background: #a78bfa; }
+.dot-rechazados { background: #f87171; }
+ 
+.pipe-count {
+  background: rgba(255,255,255,.22);
+  border-radius: 10px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  text-align: center;
+}
+.pipeline-tab:not(.active) .pipe-count {
+  background: var(--bg);
+  color: var(--text-muted);
+}
+ 
+.pipeline-actions { flex-shrink: 0; }
+ 
+/* ── CLIENT LIST PANEL ────────────────────────────────────── */
+.client-list-panel {
+  display: none;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+ 
+.client-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+ 
+.client-list-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--text);
+}
+ 
+.client-list-body {
+  padding: 8px 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+ 
+.client-list-empty {
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+ 
+.client-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  gap: 10px;
+  transition: background .12s;
+}
+.client-row:hover { background: var(--bg); }
+ 
+.client-row-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.client-row-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.client-row-ci   { font-size: 11px; color: var(--text-muted); font-family: monospace; }
+ 
+.client-row-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+ 
+.btn-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background .12s;
+}
+.btn-link:hover { background: var(--bg); }
+.btn-link.danger { color: var(--danger, #f87171); }
+ 
+/* ── DOC UPLOAD FIELDS ────────────────────────────────────── */
+.docs-grid {
+  grid-template-columns: repeat(3, 1fr) !important;
+}
+@media (max-width: 700px) {
+  .docs-grid { grid-template-columns: 1fr !important; }
+}
+ 
+.doc-upload-field { grid-column: span 1 !important; }
+ 
+.doc-dropzone {
+  position: relative;
+  border: 1.5px dashed var(--border);
+  border-radius: 8px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .18s, background .18s;
+  background: var(--bg);
+}
+.doc-dropzone:hover { border-color: var(--accent); background: var(--surface); }
+.doc-dropzone.drag-over { border-color: var(--accent); background: var(--surface); }
+.doc-dropzone.has-file  { border-style: solid; border-color: var(--accent); }
+ 
+.doc-dz-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+  pointer-events: none;
+  padding: 8px;
+}
+.doc-dz-inner svg { opacity: .4; }
+ 
+.doc-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+ 
+.doc-filename {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text);
+  text-align: center;
+  word-break: break-all;
+}
+ 
+/* ── ENTITY CHECKBOXES ────────────────────────────────────── */
+.entities-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  position: relative;
+}
+ 
+.entity-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px 7px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--surface);
+  transition: border-color .16s, background .16s;
+  user-select: none;
+}
+.entity-check:hover { border-color: var(--accent); }
+.entity-check:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+ 
+.entity-check input[type="checkbox"] { display: none; }
+ 
+.entity-check-box {
+  width: 16px; height: 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .16s, border-color .16s;
+}
+.entity-check:has(input:checked) .entity-check-box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.entity-check:has(input:checked) .entity-check-box::after {
+  content: '';
+  display: block;
+  width: 9px; height: 5px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translateY(-1px);
+}
+ 
+.entity-check-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: .02em;
+}
+ 
+.entity-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: help;
+  flex-shrink: 0;
+  transition: background .14s;
+}
+.entity-info-btn:hover { background: var(--accent); color: #fff; }
+ 
+.entity-tooltip {
+  position: absolute;
+  z-index: 100;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-radius: 7px;
+  max-width: 280px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  pointer-events: none;
+}
+ 
+/* ── URL GENERATOR ────────────────────────────────────────── */
+.url-generator {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.url-generator .url-output {
+  flex: 1;
+  min-width: 0;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+}
+ 
+.btn-sm {
+  padding: 5px 10px !important;
+  font-size: 11.5px !important;
+}
+ 
+/* ── PIPELINE TAB ACTIVE fix (always show first as active on load) ── */
+.pipeline-tab:first-child { /* keep styles from js */ }
+ 
+/* ── MISC ─────────────────────────────────────────────────── */
+.ref-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-top: 3px;
+}
+
+/* ============================================================
+   TUFI v3 — CSS adicional (kanban, barra cliente activo)
+   Agregá al final de styles.css
+   ============================================================ */
+
+/* ── ACTIVE CLIENT BAR ─────────────────────────────────────── */
+.active-client-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border: 1.5px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+}
+.active-client-label { color: var(--text-muted); font-weight: 500; }
+.active-client-name  { color: var(--text); font-weight: 700; }
+.active-client-unsaved {
+  color: #f59e0b;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+/* ── PIPELINE BAR ──────────────────────────────────────────── */
+.pipeline-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.pipeline-tabs { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+
+.pipeline-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.pipeline-tab:hover   { border-color: var(--accent); color: var(--text); }
+.pipeline-tab.active  { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.pipe-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.dot-proceso    { background: #60a5fa; }
+.dot-aprobado   { background: #34d399; }
+.dot-oferta     { background: #f59e0b; }
+.dot-nuevos     { background: #a78bfa; }
+.dot-rechazados { background: #f87171; }
+
+.pipe-count {
+  background: rgba(255,255,255,.2);
+  border-radius: 10px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  text-align: center;
+}
+.pipeline-tab:not(.active) .pipe-count { background: var(--bg); color: var(--text-muted); }
+.pipeline-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* ── CLIENT LIST PANEL ─────────────────────────────────────── */
+.client-list-panel {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.client-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.client-list-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.client-list-hint  { font-size: 11px; color: var(--text-muted); }
+
+/* ── KANBAN BOARD ──────────────────────────────────────────── */
+.kanban-board {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding: 10px;
+  max-height: 340px;
+}
+
+.kcol {
+  flex: 0 0 180px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+.kcol:last-child { border-right: none; }
+
+.kcol-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.kcol-title { flex: 1; }
+.kcol-count {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 0 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.kcol-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 60px;
+  transition: background .12s;
+  border-radius: 6px;
+}
+.kcol-body.drag-over { background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
+
+.kcol-drop-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 6px 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+.kcol-body.drag-over .kcol-drop-hint { opacity: 1; }
+.kcol-body:empty .kcol-drop-hint     { opacity: 0.4; }
+
+/* Cards */
+.kcard {
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 9px;
+  cursor: grab;
+  transition: box-shadow .15s, border-color .15s, opacity .15s;
+  user-select: none;
+}
+.kcard:hover        { border-color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.kcard.kcard--active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg)); }
+.kcard.dragging     { opacity: .4; cursor: grabbing; }
+
+.kcard-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.kcard-ci   { font-size: 10px; color: var(--text-muted); font-family: monospace; margin-bottom: 5px; }
+
+.kcard-actions { display: flex; gap: 4px; }
+.kcard-btn {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 10px;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all .12s;
+  text-align: center;
+}
+.kcard-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.kcard-del:hover { background: #f87171; border-color: #f87171; }
+
+/* ── ENTITY CHECKBOXES ──────────────────────────────────────── */
+.entities-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  position: relative;
+}
+.entity-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px 7px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--surface);
+  transition: border-color .15s, background .15s;
+  user-select: none;
+}
+.entity-check:hover { border-color: var(--accent); }
+.entity-check:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.entity-check input[type="checkbox"] { display: none; }
+.entity-check-box {
+  width: 15px; height: 15px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s;
+}
+.entity-check:has(input:checked) .entity-check-box { background: var(--accent); border-color: var(--accent); }
+.entity-check:has(input:checked) .entity-check-box::after {
+  content: '';
+  display: block;
+  width: 8px; height: 4px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translateY(-1px);
+}
+.entity-check-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.entity-info-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--border); color: var(--text-muted);
+  font-size: 10px; cursor: help; flex-shrink: 0;
+  transition: background .12s;
+}
+.entity-info-btn:hover { background: var(--accent); color: #fff; }
+.entity-tooltip {
+  position: absolute; z-index: 100;
+  background: var(--text); color: var(--bg);
+  font-size: 11.5px; line-height: 1.5;
+  padding: 8px 12px; border-radius: 7px;
+  max-width: 280px; box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  pointer-events: none;
+}
+
+/* ── URL GENERATOR ──────────────────────────────────────────── */
+.url-generator {
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+}
+.url-output {
+  flex: 1; min-width: 0;
+  font-family: monospace; font-size: 11px; color: var(--text-muted);
+  background: var(--bg);
+}
+.btn-sm { padding: 5px 10px !important; font-size: 11.5px !important; }
+
+/* ── BTN-LINK ────────────────────────────────────────────────── */
+.btn-link {
+  background: none; border: none; cursor: pointer;
+  color: var(--accent); font-size: 12px; font-weight: 500;
+  padding: 2px 6px; border-radius: 4px;
+  transition: background .12s;
+}
+.btn-link:hover { background: var(--bg); }
+
+/* ── MISC ────────────────────────────────────────────────────── */
+.ref-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; color: var(--text-muted);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 6px; margin-top: 3px;
+}

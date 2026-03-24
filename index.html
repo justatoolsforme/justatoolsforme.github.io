@@ -56,188 +56,278 @@
   <main class="main" id="mainContent">
 
     <!-- VIEW 1: FORM CONTACT -->
-    <section class="view active" id="view-formcontact">
-      <div class="view-header">
-        <div>
-          <h1 class="view-title">Form Contact</h1>
-          <p class="view-subtitle">Solicitud de crédito — TUFI</p>
+    <!-- VIEW 1: FORM CONTACT -->
+<section class="view active" id="view-formcontact">
+  <div class="view-header">
+    <div>
+      <h1 class="view-title">Form Contact</h1>
+      <p class="view-subtitle">Solicitud de crédito — TUFI</p>
+    </div>
+  </div>
+
+  <!-- ===== PIPELINE / KANBAN TABS ===== -->
+  <div class="pipeline-bar">
+    <div class="pipeline-tabs" id="pipelineTabs">
+      <button class="pipeline-tab active" data-stage="EN_PROCESO">
+        <span class="pipe-dot dot-proceso"></span>EN PROCESO
+        <span class="pipe-count" id="cnt-EN_PROCESO">0</span>
+      </button>
+      <button class="pipeline-tab" data-stage="APROBADO">
+        <span class="pipe-dot dot-aprobado"></span>APROBADO
+        <span class="pipe-count" id="cnt-APROBADO">0</span>
+      </button>
+      <button class="pipeline-tab" data-stage="OFERTA_REALIZADA">
+        <span class="pipe-dot dot-oferta"></span>OFERTA REALIZADA
+        <span class="pipe-count" id="cnt-OFERTA_REALIZADA">0</span>
+      </button>
+      <button class="pipeline-tab" data-stage="NUEVOS">
+        <span class="pipe-dot dot-nuevos"></span>NUEVOS
+        <span class="pipe-count" id="cnt-NUEVOS">0</span>
+      </button>
+      <button class="pipeline-tab" data-stage="RECHAZADOS">
+        <span class="pipe-dot dot-rechazados"></span>RECHAZADOS
+        <span class="pipe-count" id="cnt-RECHAZADOS">0</span>
+      </button>
+    </div>
+    <div class="pipeline-actions">
+      <button class="btn btn-sm btn-ghost" id="newClientBtn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuevo
+      </button>
+      <button class="btn btn-sm btn-ghost" id="downloadAllBtn" title="Descargar todos los clientes">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Todos
+      </button>
+    </div>
+  </div>
+
+  <!-- CLIENT LIST PANEL (drag & drop kanban) -->
+  <div class="client-list-panel" id="clientListPanel" style="display:none">
+    <div class="client-list-header">
+      <span class="client-list-title" id="clientListTitle">EN PROCESO</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="client-list-hint">Arrastrá para cambiar etapa</span>
+        <button class="btn-link" id="closeClientList">✕</button>
+      </div>
+    </div>
+    <!-- Kanban columns -->
+    <div class="kanban-board" id="kanbanBoard"></div>
+  </div>
+
+  <!-- FORMULARIO -->
+  <div class="form-container">
+    <!-- Indicador de cliente activo -->
+    <div class="active-client-bar" id="activeClientBar" style="display:none">
+      <span class="active-client-label">Editando:</span>
+      <span class="active-client-name" id="activeClientName">—</span>
+      <span class="active-client-unsaved" id="activeClientUnsaved" style="display:none">● sin guardar</span>
+    </div>
+
+    <form id="creditForm" autocomplete="off">
+
+      <div class="form-section">
+        <div class="section-label">Datos Personales</div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="fc-nombres">Nombres</label>
+            <input type="text" id="fc-nombres" placeholder="Ej: Juan Carlos">
+          </div>
+          <div class="field">
+            <label for="fc-apellidos">Apellidos</label>
+            <input type="text" id="fc-apellidos" placeholder="Ej: González López">
+          </div>
+          <div class="field">
+            <label for="fc-cedula">Cédula Nro.</label>
+            <input type="text" id="fc-cedula" placeholder="Ej: 4.123.456">
+          </div>
+          <div class="field">
+            <label for="fc-fechanac">Fecha de nacimiento</label>
+            <input type="text" id="fc-fechanac" placeholder="DD/MM/AAAA">
+          </div>
+          <div class="field">
+            <label for="fc-estadocivil">Estado civil</label>
+            <select id="fc-estadocivil">
+              <option value="">— Seleccionar —</option>
+              <option>Soltero/a</option>
+              <option>Casado/a</option>
+              <option>Divorciado/a</option>
+              <option>Viudo/a</option>
+              <option>Unión libre</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="fc-celular">Celular</label>
+            <input type="text" id="fc-celular" placeholder="Ej: 0981 123 456">
+          </div>
+          <div class="field ac-wrap">
+            <label for="fc-ciudad-p">Ciudad</label>
+            <input type="text" id="fc-ciudad-p" placeholder="Escribí para buscar…" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="fc-barrio-p">Barrio</label>
+            <input type="text" id="fc-barrio-p" placeholder="Ej: Villa Aurelia">
+          </div>
+          <div class="field field-full">
+            <label for="fc-direccion-p">Dirección</label>
+            <input type="text" id="fc-direccion-p" placeholder="Ej: Av. España 1234 c/ Guaraní">
+          </div>
         </div>
       </div>
 
-      <!-- PANEL OCR -->
-      <div class="ocr-panel">
-        <button class="ocr-toggle" id="ocrToggle">
-          <span class="ocr-toggle-left">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
-            Escanear Cédula de Identidad
-            <span class="ocr-badge">OCR</span>
-          </span>
-          <svg class="ocr-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      <!-- ENTIDADES (checkboxes) -->
+      <div class="form-section">
+        <div class="section-label">Entidades Disponibles</div>
+        <div class="entities-grid">
+          <label class="entity-check">
+            <input type="checkbox" id="ent-solucion" name="entidad" value="SOLUCION">
+            <span class="entity-check-box"></span>
+            <span class="entity-check-name">SOLUCIÓN</span>
+            <span class="entity-info-btn" data-info="No califican militares ni policía. Documentos: Boletas de IPS con cédula en un mismo PDF.">ℹ</span>
+          </label>
+          <label class="entity-check">
+            <input type="checkbox" id="ent-tufi" name="entidad" value="TU_FINANCIERA">
+            <span class="entity-check-box"></span>
+            <span class="entity-check-name">TU FINANCIERA</span>
+            <span class="entity-info-btn" data-info="No califican funcionarios públicos contratados. Al enviar: boletas IPS en PDF, cédula en PDF y autorización en PDF separados.">ℹ</span>
+          </label>
+          <label class="entity-check">
+            <input type="checkbox" id="ent-solar" name="entidad" value="SOLAR">
+            <span class="entity-check-box"></span>
+            <span class="entity-check-name">SOLAR</span>
+            <span class="entity-info-btn" data-info="Califica todo el país. Puede retirar en Maxi Cambios. Requiere autorización del cliente en imagen.">ℹ</span>
+          </label>
+          <label class="entity-check">
+            <input type="checkbox" id="ent-japonesa" name="entidad" value="JAPONESA">
+            <span class="entity-check-box"></span>
+            <span class="entity-check-name">JAPONESA</span>
+            <span class="entity-info-btn" data-info="Cédula en imagen en cuadro. Boletas de IPS en PDF.">ℹ</span>
+          </label>
+          <label class="entity-check">
+            <input type="checkbox" id="ent-carsa" name="entidad" value="CARSA">
+            <span class="entity-check-box"></span>
+            <span class="entity-check-name">CARSA</span>
+            <span class="entity-info-btn" data-info="Consultar en sistema. Si aparece como nuevo, consultar en grupo. Contratados: 2 años de antigüedad mínima.">ℹ</span>
+          </label>
+        </div>
+        <div class="entity-tooltip" id="entityTooltip" style="display:none"></div>
+      </div>
+
+      <!-- CECOT / ID EMPLEADOR -->
+      <div class="form-section">
+        <div class="section-label">IPS — CECOT / ID Empleador</div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="fc-cecot">CECOT</label>
+            <input type="text" id="fc-cecot" placeholder="Ej: 1077859">
+          </div>
+          <div class="field">
+            <label for="fc-idempleador">ID Empleador</label>
+            <input type="text" id="fc-idempleador" placeholder="Ej: 4045">
+          </div>
+          <div class="field field-full">
+            <label>Enlace Boletas IPS</label>
+            <div class="url-generator">
+              <input type="text" id="fc-urlboletas" readonly placeholder="Completá CECOT e ID Empleador para generar…" class="url-output">
+              <button type="button" class="btn btn-sm btn-secondary" id="fc-genurl">Generar</button>
+              <a class="btn btn-sm btn-primary" id="fc-openurl" href="#" target="_blank" rel="noopener" style="display:none">Abrir</a>
+              <button type="button" class="btn btn-sm btn-ghost" id="fc-copyurl" style="display:none">Copiar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-label">Datos Laborales</div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="fc-empresa">Empresa</label>
+            <input type="text" id="fc-empresa" placeholder="Nombre de la empresa">
+          </div>
+          <div class="field">
+            <label for="fc-salario">Salario</label>
+            <input type="text" id="fc-salario" placeholder="Ej: 2.500.000 Gs.">
+          </div>
+          <div class="field ac-wrap">
+            <label for="fc-ciudad-l">Ciudad</label>
+            <input type="text" id="fc-ciudad-l" placeholder="Escribí para buscar…" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="fc-barrio-l">Barrio</label>
+            <input type="text" id="fc-barrio-l" placeholder="Ej: Villa Morra">
+          </div>
+          <div class="field field-full">
+            <label for="fc-direccion-l">Dirección</label>
+            <input type="text" id="fc-direccion-l" placeholder="Dirección de la empresa">
+          </div>
+          <div class="field">
+            <label for="fc-lineabaja">Línea baja</label>
+            <input type="text" id="fc-lineabaja" placeholder="Ej: 0800 xxx xxx">
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-label">Referencias Personales</div>
+        <div class="form-grid">
+          <div class="field field-full">
+            <label for="fc-referencias">Referencias (Nombre – Relación – Celular)</label>
+            <textarea id="fc-referencias" rows="3" placeholder="Ej: María López – Hermana – 0981 000 111&#10;Carlos Díaz – Amigo – 0991 222 333"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-label">Solicitud</div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="fc-monto">Monto Solicitado</label>
+            <input type="text" id="fc-monto" placeholder="Ej: 5.000.000 Gs.">
+          </div>
+          <div class="field">
+            <label for="fc-plazo">Plazo</label>
+            <input type="text" id="fc-plazo" placeholder="Ej: 12 meses">
+          </div>
+          <div class="field">
+            <label for="fc-etapa">Etapa del cliente</label>
+            <select id="fc-etapa">
+              <option value="EN_PROCESO">EN PROCESO</option>
+              <option value="APROBADO">APROBADO</option>
+              <option value="OFERTA_REALIZADA">OFERTA REALIZADA</option>
+              <option value="NUEVOS">NUEVOS</option>
+              <option value="RECHAZADOS">RECHAZADOS</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+    </form>
+
+    <!-- BOTONES AL FONDO -->
+    <div class="form-footer">
+      <button class="btn btn-ghost" id="fc-clear">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
+        Limpiar
+      </button>
+      <div class="form-footer-right">
+        <button class="btn btn-secondary" id="fc-save-client">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Guardar
         </button>
-
-        <div class="ocr-body" id="ocrBody" style="display:none">
-          <div class="ocr-inner">
-
-            <div class="ocr-left">
-              <div class="ocr-dropzone" id="ocrDropzone">
-                <input type="file" id="ocrFileInput" accept="image/*" style="display:none">
-                <div class="ocr-dz-content" id="ocrDzContent">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h.01M14 18h.01M18 14h.01M18 18h.01"/></svg>
-                  <p>Arrastrá la foto de la cédula<br>o <strong>hacé clic</strong> para seleccionar</p>
-                  <p style="font-size:11px;color:var(--text-muted)">También podés <kbd>Ctrl+V</kbd></p>
-                </div>
-                <img id="ocrPreview" style="display:none" alt="Preview">
-              </div>
-            </div>
-
-            <div class="ocr-right">
-              <button class="btn btn-primary" id="ocrScanBtn" disabled>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                Escanear
-              </button>
-              <div class="ocr-status" id="ocrStatus">Cargá una imagen para comenzar.</div>
-              <div class="ocr-fields" id="ocrFields"></div>
-              <button class="btn btn-secondary" id="ocrApplyBtn" style="display:none">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                Aplicar al formulario
-              </button>
-            </div>
-
-          </div>
-          <p class="ocr-note">⚠ El OCR puede tener imprecisiones. Revisá siempre los datos antes de enviar.</p>
-        </div>
+        <button class="btn btn-secondary" id="fc-copy">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          Copiar
+        </button>
+        <button class="btn btn-primary" id="fc-download">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Descargar .txt
+        </button>
       </div>
-      <!-- /OCR PANEL -->
+    </div>
 
-      <!-- FORMULARIO -->
-      <div class="form-container">
-        <form id="creditForm" autocomplete="off">
+  </div>
+</section>
 
-          <div class="form-section">
-            <div class="section-label">Datos Personales</div>
-            <div class="form-grid">
-              <div class="field">
-                <label for="fc-nombres">Nombres</label>
-                <input type="text" id="fc-nombres" placeholder="Ej: Juan Carlos">
-              </div>
-              <div class="field">
-                <label for="fc-apellidos">Apellidos</label>
-                <input type="text" id="fc-apellidos" placeholder="Ej: González López">
-              </div>
-              <div class="field">
-                <label for="fc-cedula">Cédula Nro.</label>
-                <input type="text" id="fc-cedula" placeholder="Ej: 4.123.456">
-              </div>
-              <div class="field">
-                <label for="fc-fechanac">Fecha de nacimiento</label>
-                <input type="text" id="fc-fechanac" placeholder="DD/MM/AAAA">
-              </div>
-              <div class="field">
-                <label for="fc-estadocivil">Estado civil</label>
-                <select id="fc-estadocivil">
-                  <option value="">— Seleccionar —</option>
-                  <option selected>Soltero/a</option>
-                  <option>Casado/a</option>
-                  <option>Divorciado/a</option>
-                  <option>Viudo/a</option>
-                  <option>Unión libre</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="fc-celular">Celular</label>
-                <input type="text" id="fc-celular" placeholder="Ej: 0981 123 456">
-              </div>
-              <div class="field ac-wrap">
-                <label for="fc-ciudad-p">Ciudad</label>
-                <input type="text" id="fc-ciudad-p" placeholder="Escribí para buscar…" autocomplete="off">
-              </div>
-              <div class="field">
-                <label for="fc-barrio-p">Barrio</label>
-                <input type="text" id="fc-barrio-p" placeholder="Ej: Villa Aurelia">
-              </div>
-              <div class="field field-full">
-                <label for="fc-direccion-p">Dirección</label>
-                <input type="text" id="fc-direccion-p" placeholder="Ej: Av. España 1234 c/ Guaraní">
-              </div>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <div class="section-label">Datos Laborales</div>
-            <div class="form-grid">
-              <div class="field">
-                <label for="fc-empresa">Empresa</label>
-                <input type="text" id="fc-empresa" placeholder="Nombre de la empresa">
-              </div>
-              <div class="field">
-                <label for="fc-salario">Salario</label>
-                <input type="text" id="fc-salario" placeholder="Ej: 2.500.000 Gs.">
-              </div>
-              <div class="field ac-wrap">
-                <label for="fc-ciudad-l">Ciudad</label>
-                <input type="text" id="fc-ciudad-l" placeholder="Escribí para buscar…" autocomplete="off">
-              </div>
-              <div class="field">
-                <label for="fc-barrio-l">Barrio</label>
-                <input type="text" id="fc-barrio-l" placeholder="Ej: Villa Morra">
-              </div>
-              <div class="field field-full">
-                <label for="fc-direccion-l">Dirección</label>
-                <input type="text" id="fc-direccion-l" placeholder="Dirección de la empresa">
-              </div>
-              <div class="field">
-                <label for="fc-lineabaja">Línea baja</label>
-                <input type="text" id="fc-lineabaja" placeholder="Ej: 0800 xxx xxx">
-              </div>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <div class="section-label">Referencias Personales</div>
-            <div class="form-grid">
-              <div class="field field-full">
-                <label for="fc-referencias">Referencias (Nombre – Relación – Celular)</label>
-                <textarea id="fc-referencias" rows="3" placeholder="Ej: María López – Hermana – 0981 000 111&#10;Carlos Díaz – Amigo – 0991 222 333"></textarea>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <div class="section-label">Solicitud</div>
-            <div class="form-grid">
-              <div class="field">
-                <label for="fc-monto">Monto Solicitado</label>
-                <input type="text" id="fc-monto" placeholder="Ej: 5.000.000 Gs.">
-              </div>
-              <div class="field">
-                <label for="fc-plazo">Plazo</label>
-                <input type="text" id="fc-plazo" placeholder="Ej: 12 meses">
-              </div>
-            </div>
-          </div>
-
-        </form>
-
-        <!-- BOTONES AL FONDO -->
-        <div class="form-footer">
-          <button class="btn btn-ghost" id="fc-clear">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
-            Limpiar
-          </button>
-          <div class="form-footer-right">
-            <button class="btn btn-secondary" id="fc-copy">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-              Copiar
-            </button>
-            <button class="btn btn-primary" id="fc-download">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Descargar .txt
-            </button>
-          </div>
-        </div>
-
-      </div>
-    </section>
+    
 
     <!-- VIEW 2: IMG → PDF -->
     <section class="view" id="view-convertpdf">
@@ -353,6 +443,36 @@
               <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
             </a>
 
+            <a class="ref-card" href="https://servicios.ips.gov.py/compder/index.html" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge">E</div>
+              <div class="ref-info">
+                <div class="ref-title">IPS Detallado</div>
+                <div class="ref-desc">Consulta detallada de aportes y estado IPS</div>
+                <div class="ref-url">servicios.ips.gov.py › compder › index.html</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://servicios.ips.gov.py/miips/principal.php" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge">F</div>
+              <div class="ref-info">
+                <div class="ref-title">MIIPS — Portal Principal</div>
+                <div class="ref-desc">Portal MIIPS de consultas IPS</div>
+                <div class="ref-url">servicios.ips.gov.py › miips › principal.php</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://servicios.ips.gov.py/miips/inf_tarjetita_pdf.php?ide_emplea=4045&cod_period=993,992,991,990,989,988&ide_asecot=1077859&order=" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge">G</div>
+              <div class="ref-info">
+                <div class="ref-title">Boletas IPS (Ejemplo)</div>
+                <div class="ref-desc">Boletas de aportes IPS — formato PDF</div>
+                <div class="ref-url">servicios.ips.gov.py › miips › inf_tarjetita_pdf.php</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
           </div>
         </div>
 
@@ -364,7 +484,7 @@
             <a class="ref-card" href="https://datos.sfp.gov.py/data/funcionarios" target="_blank" rel="noopener noreferrer">
               <div class="ref-badge">1</div>
               <div class="ref-info">
-                <div class="ref-title">Funcionarios — SFP</div>
+                <div class="ref-title">Funcionarios — SFP (Nómina)</div>
                 <div class="ref-desc">Datos de funcionarios públicos — Secretaría de la Función Pública</div>
                 <div class="ref-url">datos.sfp.gov.py › data › funcionarios</div>
               </div>
@@ -389,7 +509,7 @@
           <div class="ref-group-title">Desembolso — Sistemas de Entidades</div>
           <div class="ref-list">
 
-            <a  class="ref-card" href="http://44.223.113.242/sir/login.php" target="_blank" rel="noopener noreferrer">
+            <a class="ref-card" href="http://44.223.113.242/sir/login.php" target="_blank" rel="noopener noreferrer">
               <div class="ref-badge ref-badge--internal">1</div>
               <div class="ref-info">
                 <div class="ref-title">Credi Solución — SIR</div>
@@ -399,37 +519,58 @@
               <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
             </a>
 
-            <a class="ref-card" href="https://cheduoaliados.carsa.com.py" target="_blank" rel="noopener noreferrer">
-              <div class="ref-badge ref-badge--blue">2</div>
+            <a class="ref-card" href="http://190.104.179.54:32589/Baseweb/baseinicio.aspx" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--internal">2</div>
               <div class="ref-info">
-                <div class="ref-title">Carsa</div>
+                <div class="ref-title">Credi Solución — BaseWeb</div>
+                <div class="ref-desc">Acceso web alternativo Credi Solución</div>
+                <div class="ref-url">190.104.179.54:32589 › Baseweb › baseinicio.aspx</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://cheduoaliados.carsa.com.py" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">3</div>
+              <div class="ref-info">
+                <div class="ref-title">Carsa — Portal Aliados</div>
                 <div class="ref-desc">Portal de aliados Carsa</div>
                 <div class="ref-url">cheduoaliados.carsa.com.py</div>
               </div>
               <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
             </a>
 
-            <a class="ref-card" href="http://10.1.253.1:9180/sgc/servlet/py.com.negofin.wcuentasdsp" target="_blank" rel="noopener noreferrer">
-              <div class="ref-badge ref-badge--blue">3</div>
+            <a class="ref-card" href="http://10.1.253.143:9180/sgc/servlet/py.com.negofin.wwwelcome" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">4</div>
               <div class="ref-info">
-                <div class="ref-title">CrediMarket — SGC</div>
+                <div class="ref-title">CrediMarket — Market SGC</div>
                 <div class="ref-desc">Sistema de gestión de créditos — Red interna</div>
-                <div class="ref-url">10.1.253.1:9180 › sgc › wcuentasdsp</div>
+                <div class="ref-url">10.1.253.143:9180 › sgc › wwwelcome</div>
               </div>
               <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
             </a>
 
-            <div class="ref-card ref-card--internal">
-              <div class="ref-badge ref-badge--blue">4</div>
+            <a class="ref-card" href="https://fiado.fpj.com.py/ords/f?p=104:LOGIN:5205056791295:" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">5</div>
+              <div class="ref-info">
+                <div class="ref-title">Japonesa — FIADO</div>
+                <div class="ref-desc">Acceso al sistema FIADO — Financiera Paraguayo Japonesa</div>
+                <div class="ref-url">fiado.fpj.com.py › ords › LOGIN</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://validador.fpj.com.py/ords/f?p=121:LOGIN_DESKTOP:28198592303412:::::" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">6</div>
               <div class="ref-info">
                 <div class="ref-title">Japonesa — Validador Interactivo 2.0</div>
                 <div class="ref-desc">Sign In — Financiera Paraguayo Japonesa</div>
-                <div class="ref-tag">Sistema interno</div>
+                <div class="ref-url">validador.fpj.com.py › ords › LOGIN_DESKTOP</div>
               </div>
-            </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
 
             <a class="ref-card" href="https://infonet.com.py/sessions/otp" target="_blank" rel="noopener noreferrer">
-              <div class="ref-badge ref-badge--blue">5</div>
+              <div class="ref-badge ref-badge--blue">7</div>
               <div class="ref-info">
                 <div class="ref-title">Pagomóvil — Infonet</div>
                 <div class="ref-desc">Acceso al portal Pagomóvil vía Infonet</div>
@@ -438,21 +579,53 @@
               <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
             </a>
 
+            <a class="ref-card" href="https://10.251.0.10/tufinanciera/servlet/com.dlya.bantotal.hwelcome" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">8</div>
+              <div class="ref-info">
+                <div class="ref-title">TuFinanciera — Aspirantes</div>
+                <div class="ref-desc">Sistema de carga de solicitudes (Fortinet VPN requerida)</div>
+                <div class="ref-url">10.251.0.10 › tufinanciera › bantotal</div>
+                <div class="ref-tag">🔐 Requiere VPN</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://app.mercately.com/login" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">9</div>
+              <div class="ref-info">
+                <div class="ref-title">Mercatil — Mercately</div>
+                <div class="ref-desc">Plataforma de mensajería y gestión comercial</div>
+                <div class="ref-url">app.mercately.com › login</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://docs.google.com/spreadsheets/d/1CI4AHnYpHPLQNffY5nX3hqtstjO9RRsONhNLKr5Mys0/edit?pli=1&gid=0#gid=0" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">10</div>
+              <div class="ref-info">
+                <div class="ref-title">Gestión Diaria — Google Sheets</div>
+                <div class="ref-desc">Planilla de gestión diaria del equipo</div>
+                <div class="ref-url">docs.google.com › spreadsheets</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
+            <a class="ref-card" href="https://www.gruposer.com.py/efinanweb/ffvv/principal#!/bienvenido" target="_blank" rel="noopener noreferrer">
+              <div class="ref-badge ref-badge--blue">11</div>
+              <div class="ref-info">
+                <div class="ref-title">SERFIN SA — Grupo SER</div>
+                <div class="ref-desc">Portal web SERFIN — Grupo SER</div>
+                <div class="ref-url">gruposer.com.py › efinanweb › ffvv</div>
+              </div>
+              <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
+            </a>
+
             <div class="ref-card ref-card--internal">
-              <div class="ref-badge ref-badge--blue">6</div>
+              <div class="ref-badge ref-badge--blue">12</div>
               <div class="ref-info">
                 <div class="ref-title">Solar — Web y AnyDesk</div>
                 <div class="ref-desc">Banco Solar — Acceso vía web o AnyDesk</div>
                 <div class="ref-tag">Ver acceso con supervisor</div>
-              </div>
-            </div>
-
-            <div class="ref-card ref-card--internal">
-              <div class="ref-badge ref-badge--blue">7</div>
-              <div class="ref-info">
-                <div class="ref-title">TuFinanciera — Aspirantes</div>
-                <div class="ref-desc">Carga de solicitudes en sistema Aspirantes</div>
-                <div class="ref-tag">Sistema interno</div>
               </div>
             </div>
 
@@ -464,7 +637,6 @@
           <div class="ref-group-title">Guía Operativa — Preguntas Frecuentes</div>
           <div class="faq-list">
 
-            <!-- FAQ 1 -->
             <div class="faq-item">
               <button class="faq-trigger" data-faq="1">
                 <span class="faq-num">1</span>
@@ -478,7 +650,6 @@
               </div>
             </div>
 
-            <!-- FAQ 2 -->
             <div class="faq-item">
               <button class="faq-trigger" data-faq="2">
                 <span class="faq-num">2</span>
@@ -494,7 +665,6 @@
               </div>
             </div>
 
-            <!-- FAQ 3 -->
             <div class="faq-item">
               <button class="faq-trigger" data-faq="3">
                 <span class="faq-num">3</span>
@@ -507,7 +677,6 @@
               </div>
             </div>
 
-            <!-- FAQ 4 -->
             <div class="faq-item">
               <button class="faq-trigger" data-faq="4">
                 <span class="faq-num">4</span>
@@ -534,7 +703,6 @@
               </div>
             </div>
 
-            <!-- FAQ 5 -->
             <div class="faq-item">
               <button class="faq-trigger" data-faq="5">
                 <span class="faq-num">5</span>
@@ -543,43 +711,18 @@
               </button>
               <div class="faq-body" id="faq-5" style="display:none">
                 <div class="faq-type-list">
-                  <div class="faq-type-item">
-                    <div class="faq-type-name">Cotizante General</div>
-                    <div class="faq-type-desc">Sueldo fijo.</div>
-                  </div>
-                  <div class="faq-type-item">
-                    <div class="faq-type-name">Cotizante Jornalero</div>
-                    <div class="faq-type-desc">Cobra por hora/días trabajados. Siempre pedir 3 últimos comprobantes (boletas y/o liquidaciones). Califica si gana más del mínimo.</div>
-                  </div>
-                  <div class="faq-type-item">
-                    <div class="faq-type-name">Seguro Doméstico</div>
-                    <div class="faq-type-desc">Empleados domésticos (ama de llaves, jardinero, chofer, etc.). Ver que gane más del mínimo.</div>
-                  </div>
-                  <div class="faq-type-item">
-                    <div class="faq-type-name">Cotizante Zafrero</div>
-                    <div class="faq-type-desc">Ver que aporte por más del sueldo mínimo.</div>
-                  </div>
-                  <div class="faq-type-item">
-                    <div class="faq-type-name">Ganadería</div>
-                    <div class="faq-type-desc">Empleados de estancias. Ver que aporte por más del sueldo mínimo.</div>
-                  </div>
-                  <div class="faq-type-item">
-                    <div class="faq-type-name">Aprendices</div>
-                    <div class="faq-type-desc">Cada empresa tiene políticas diferentes. Consultar al supervisor/compañero. Ver que aporte por más del mínimo.</div>
-                  </div>
-                  <div class="faq-type-item">
-                    <div class="faq-type-name">Tiempo Parcial</div>
-                    <div class="faq-type-desc">Trabajan medio día. Suelen aportar por menos del mínimo. Ver boletas.</div>
-                  </div>
-                  <div class="faq-type-item">
-                    <div class="faq-type-name">Chofer de Ómnibus</div>
-                    <div class="faq-type-desc">Choferes de colectivos de corta distancia (Línea 48, Línea 27, etc.).</div>
-                  </div>
+                  <div class="faq-type-item"><div class="faq-type-name">Cotizante General</div><div class="faq-type-desc">Sueldo fijo.</div></div>
+                  <div class="faq-type-item"><div class="faq-type-name">Cotizante Jornalero</div><div class="faq-type-desc">Cobra por hora/días trabajados. Siempre pedir 3 últimos comprobantes (boletas y/o liquidaciones). Califica si gana más del mínimo.</div></div>
+                  <div class="faq-type-item"><div class="faq-type-name">Seguro Doméstico</div><div class="faq-type-desc">Empleados domésticos (ama de llaves, jardinero, chofer, etc.). Ver que gane más del mínimo.</div></div>
+                  <div class="faq-type-item"><div class="faq-type-name">Cotizante Zafrero</div><div class="faq-type-desc">Ver que aporte por más del sueldo mínimo.</div></div>
+                  <div class="faq-type-item"><div class="faq-type-name">Ganadería</div><div class="faq-type-desc">Empleados de estancias. Ver que aporte por más del sueldo mínimo.</div></div>
+                  <div class="faq-type-item"><div class="faq-type-name">Aprendices</div><div class="faq-type-desc">Cada empresa tiene políticas diferentes. Consultar al supervisor/compañero. Ver que aporte por más del mínimo.</div></div>
+                  <div class="faq-type-item"><div class="faq-type-name">Tiempo Parcial</div><div class="faq-type-desc">Trabajan medio día. Suelen aportar por menos del mínimo. Ver boletas.</div></div>
+                  <div class="faq-type-item"><div class="faq-type-name">Chofer de Ómnibus</div><div class="faq-type-desc">Choferes de colectivos de corta distancia (Línea 48, Línea 27, etc.).</div></div>
                 </div>
               </div>
             </div>
 
-            <!-- FAQ 6 -->
             <div class="faq-item">
               <button class="faq-trigger" data-faq="6">
                 <span class="faq-num">6</span>
@@ -588,14 +731,8 @@
               </button>
               <div class="faq-body" id="faq-6" style="display:none">
                 <div class="faq-type-list">
-                  <div class="faq-type-item faq-type-item--highlight">
-                    <div class="faq-type-name">Nombrados</div>
-                    <div class="faq-type-desc">Califican en todos los lados.</div>
-                  </div>
-                  <div class="faq-type-item">
-                    <div class="faq-type-name">Contratados — Política especial por empresa</div>
-                    <div class="faq-type-desc">Cada entidad tiene requisitos de antigüedad distintos.</div>
-                  </div>
+                  <div class="faq-type-item faq-type-item--highlight"><div class="faq-type-name">Nombrados</div><div class="faq-type-desc">Califican en todos los lados.</div></div>
+                  <div class="faq-type-item"><div class="faq-type-name">Contratados — Política especial por empresa</div><div class="faq-type-desc">Cada entidad tiene requisitos de antigüedad distintos.</div></div>
                 </div>
                 <div class="faq-divider"></div>
                 <p class="faq-subtitle">Antigüedad requerida para contratados</p>
@@ -609,8 +746,8 @@
               </div>
             </div>
 
-          </div><!-- /faq-list -->
-        </div><!-- /ref-group preguntas -->
+          </div>
+        </div>
 
       </div>
     </section>
@@ -618,12 +755,10 @@
   </main>
 </div>
 
-<!-- Botón scroll to top -->
 <button class="scroll-top-btn" id="scrollTopBtn" title="Ir al inicio">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 15l-6-6-6 6"/></svg>
 </button>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <!-- CDN externos -->

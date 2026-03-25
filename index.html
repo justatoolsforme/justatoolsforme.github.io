@@ -41,6 +41,10 @@
           <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></span>
           <span class="nav-text">Referencias</span>
         </button>
+        <button class="nav-btn" data-view="calculadora" data-tooltip="Calculadora">
+          <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h8M8 14h8M8 18h8"/></svg></span>
+          <span class="nav-text">Calculadora</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -388,7 +392,249 @@
       </div>
     </section>
 
-    <!-- VIEW 3: REFERENCIAS -->
+    <!-- VIEW 3: CALCULADORA -->
+    <section class="view" id="view-calculadora">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">Calculadora</h1>
+          <p class="view-subtitle">Análisis financiero de clientes y capacidad de pago</p>
+        </div>
+        <div class="view-actions">
+          <button class="btn btn-ghost" id="calc-clean-all">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
+            Limpiar Todo
+          </button>
+        </div>
+      </div>
+
+      <div class="calc-container">
+        <!-- CALCULADORA 1: PROMEDIO DE GANANCIAS -->
+        <div class="calc-card">
+          <div class="calc-title">Promedio de Ganancias</div>
+          <p class="calc-desc">Calcula el promedio de 3 montos: (A + B + C) / 3</p>
+          
+          <div class="calc-form">
+            <div class="calc-field">
+              <label for="calc-monto-a">Monto A (Gs.)</label>
+              <input type="number" id="calc-monto-a" placeholder="Ej: 5000000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc-monto-b">Monto B (Gs.)</label>
+              <input type="number" id="calc-monto-b" placeholder="Ej: 4500000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc-monto-c">Monto C (Gs.)</label>
+              <input type="number" id="calc-monto-c" placeholder="Ej: 5500000" step="1000">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="calc-promedio-btn">Calcular Promedio</button>
+
+          <div class="calc-result" id="calc-promedio-result" style="display:none">
+            <div class="result-item">
+              <span class="result-label">Total (A + B + C):</span>
+              <span class="result-value" id="calc-promedio-suma">—</span>
+            </div>
+            <div class="result-item result-highlight">
+              <span class="result-label">Promedio:</span>
+              <span class="result-value" id="calc-promedio-valor">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CALCULADORA 2: IVA -->
+        <div class="calc-card">
+          <div class="calc-title">Cálculo de IVA</div>
+          <p class="calc-desc">Calcula IVA, ganancia real y monto total</p>
+          
+          <div class="calc-form">
+            <div class="calc-field">
+              <label for="calc-iva-porcentaje">Porcentaje IVA (%)</label>
+              <input type="number" id="calc-iva-porcentaje" placeholder="10" value="10" step="0.5" min="0" max="100">
+            </div>
+            <div class="calc-field">
+              <label for="calc-iva-monto">Monto Base (Gs.)</label>
+              <input type="number" id="calc-iva-monto" placeholder="Ej: 1000000" step="1000">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="calc-iva-btn">Calcular IVA</button>
+
+          <div class="calc-result" id="calc-iva-result" style="display:none">
+            <div class="result-item">
+              <span class="result-label">Monto Base:</span>
+              <span class="result-value" id="calc-iva-base">—</span>
+            </div>
+            <div class="result-item result-highlight">
+              <span class="result-label">IVA (<span id="calc-iva-pct">10</span>%):</span>
+              <span class="result-value" id="calc-iva-valor">—</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Ganancia Real:</span>
+              <span class="result-value" id="calc-iva-ganancia">—</span>
+            </div>
+            <div class="result-item result-highlight">
+              <span class="result-label">Monto Total:</span>
+              <span class="result-value" id="calc-iva-total">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CALCULADORA 3: CUOTA MENSUAL -->
+        <div class="calc-card">
+          <div class="calc-title">Cuota Mensual</div>
+          <p class="calc-desc">Calcula la cuota mensual de un crédito</p>
+          
+          <div class="calc-form">
+            <div class="calc-field">
+              <label for="calc-cuota-monto">Monto del Crédito (Gs.)</label>
+              <input type="number" id="calc-cuota-monto" placeholder="Ej: 5000000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc-cuota-plazo">Plazo (meses)</label>
+              <input type="number" id="calc-cuota-plazo" placeholder="Ej: 12" step="1" min="1">
+            </div>
+            <div class="calc-field">
+              <label for="calc-cuota-interes">Tasa de Interés Mensual (%)</label>
+              <input type="number" id="calc-cuota-interes" placeholder="Ej: 2" step="0.1" min="0">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="calc-cuota-btn">Calcular Cuota</button>
+
+          <div class="calc-result" id="calc-cuota-result" style="display:none">
+            <div class="result-item">
+              <span class="result-label">Cuota Mensual:</span>
+              <span class="result-value" id="calc-cuota-valor">—</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Total a Pagar:</span>
+              <span class="result-value" id="calc-cuota-total">—</span>
+            </div>
+            <div class="result-item result-highlight">
+              <span class="result-label">Intereses:</span>
+              <span class="result-value" id="calc-cuota-interes-total">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CALCULADORA 4: CAPACIDAD DE PAGO -->
+        <div class="calc-card">
+          <div class="calc-title">Capacidad de Pago</div>
+          <p class="calc-desc">Determina cuánto puede pagar el cliente</p>
+          
+          <div class="calc-form">
+            <div class="calc-field">
+              <label for="calc-cap-salario">Salario Mensual (Gs.)</label>
+              <input type="number" id="calc-cap-salario" placeholder="Ej: 3000000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc-cap-porcentaje">% Máximo de Deuda/Salario</label>
+              <input type="number" id="calc-cap-porcentaje" placeholder="30" value="30" step="1" min="1" max="100">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="calc-cap-btn">Calcular Capacidad</button>
+
+          <div class="calc-result" id="calc-cap-result" style="display:none">
+            <div class="result-item">
+              <span class="result-label">Salario Mensual:</span>
+              <span class="result-value" id="calc-cap-salario-show">—</span>
+            </div>
+            <div class="result-item result-highlight">
+              <span class="result-label">Pago Máximo Recomendado:</span>
+              <span class="result-value" id="calc-cap-maximo">—</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Porcentaje Aplicado:</span>
+              <span class="result-value" id="calc-cap-pct-show">30%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CALCULADORA 5: DEUDA MÁXIMA -->
+        <div class="calc-card">
+          <div class="calc-title">Deuda Máxima Recomendada</div>
+          <p class="calc-desc">Crédito máximo según capacidad de pago</p>
+          
+          <div class="calc-form">
+            <div class="calc-field">
+              <label for="calc-deuda-salario">Salario Mensual (Gs.)</label>
+              <input type="number" id="calc-deuda-salario" placeholder="Ej: 3000000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc-deuda-cuota">Cuota Mensual Máxima (Gs.)</label>
+              <input type="number" id="calc-deuda-cuota" placeholder="Ej: 600000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc-deuda-plazo">Plazo (meses)</label>
+              <input type="number" id="calc-deuda-plazo" placeholder="Ej: 12" step="1" min="1">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="calc-deuda-btn">Calcular Deuda Máxima</button>
+
+          <div class="calc-result" id="calc-deuda-result" style="display:none">
+            <div class="result-item">
+              <span class="result-label">Crédito Máximo Otorgable:</span>
+              <span class="result-value" id="calc-deuda-maximo">—</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Cuota Mensual:</span>
+              <span class="result-value" id="calc-deuda-cuota-show">—</span>
+            </div>
+            <div class="result-item result-highlight">
+              <span class="result-label">Capacidad de Pago (%):</span>
+              <span class="result-value" id="calc-deuda-capacidad">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CALCULADORA 6: ANÁLISIS DE CLIENTE -->
+        <div class="calc-card">
+          <div class="calc-title">Análisis de Cliente</div>
+          <p class="calc-desc">Resumen integrado de la capacidad crediticia</p>
+          
+          <div class="calc-form">
+            <div class="calc-field">
+              <label for="calc-cliente-salario">Salario Mensual (Gs.)</label>
+              <input type="number" id="calc-cliente-salario" placeholder="Ej: 3000000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc-cliente-credito">Monto Solicitado (Gs.)</label>
+              <input type="number" id="calc-cliente-credito" placeholder="Ej: 5000000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc-cliente-plazo">Plazo (meses)</label>
+              <input type="number" id="calc-cliente-plazo" placeholder="Ej: 12" step="1" min="1">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="calc-cliente-btn">Analizar Cliente</button>
+
+          <div class="calc-result" id="calc-cliente-result" style="display:none">
+            <div class="result-item">
+              <span class="result-label">Cuota Mensual Estimada:</span>
+              <span class="result-value" id="calc-cliente-cuota">—</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">% del Salario:</span>
+              <span class="result-value" id="calc-cliente-porcentaje">—</span>
+            </div>
+            <div class="result-item result-highlight" id="calc-cliente-estado" style="border-radius: 6px; margin: 8px -2px 8px -2px; padding: 10px;">
+              <span class="result-label">Estado de Aprobación:</span>
+              <span class="result-value" id="calc-cliente-estado-text">—</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Observación:</span>
+            </div>
+            <div style="padding: 6px 0; font-size: 12px; color: var(--text-secondary); line-height: 1.5;" id="calc-cliente-observation">—</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: REFERENCIAS -->
     <section class="view" id="view-referencias">
       <div class="view-header">
         <div>
@@ -770,5 +1016,6 @@
 <script src="js/app-geo.js"></script>
 <script src="js/app-formcontact.js"></script>
 <script src="js/app-pdf.js"></script>
+<script src="js/app-calculadora.js"></script>
 </body>
 </html>

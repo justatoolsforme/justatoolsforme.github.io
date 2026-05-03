@@ -109,6 +109,7 @@ function showToast(msg, duration = 2800) {
 
     // Delegar limpieza de UI a cada módulo si está disponible
     if (typeof fcClearFields === 'function') fcClearFields();
+    window.dispatchEvent(new Event('tufi:clients-changed'));
 
     showToast('🗑 Todos los datos fueron limpiados');
   });

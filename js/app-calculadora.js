@@ -9,8 +9,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const calcSection = document.getElementById('view-calculadora');
     const allInputs = calcSection.querySelectorAll('input[type="number"]');
     allInputs.forEach(input => {
-      if (input.id === 'calc-iva-porcentaje' || input.id === 'calc-cap-porcentaje') {
-        // Restaurar valores por defecto
+      if (input.id === 'calc-iva-porcentaje') {
+        input.value = '10';
+      } else if (input.id === 'calc-cap-porcentaje') {
         input.value = '30';
       } else if (input.id === 'calc-cuota-interes') {
         input.value = '';
@@ -24,44 +25,6 @@ document.addEventListener('DOMContentLoaded', function() {
     showToast('Todos los campos han sido limpiados', 'success');
   });
   
-  // ========== CALCULADORA 1: PROMEDIO ==========
-  const btnPromedio = document.getElementById('calc-promedio-btn');
-  const inputA = document.getElementById('calc-monto-a');
-  const inputB = document.getElementById('calc-monto-b');
-  const inputC = document.getElementById('calc-monto-c');
-  const resultPromedio = document.getElementById('calc-promedio-result');
-  const sumPromedio = document.getElementById('calc-promedio-suma');
-  const valPromedio = document.getElementById('calc-promedio-valor');
-
-  btnPromedio.addEventListener('click', function() {
-    const a = parseFloat(inputA.value) || 0;
-    const b = parseFloat(inputB.value) || 0;
-    const c = parseFloat(inputC.value) || 0;
-
-    if (a === 0 && b === 0 && c === 0) {
-      showToast('Por favor ingresa al menos un monto', 'warning');
-      return;
-    }
-
-    const total = a + b + c;
-    const promedio = total / 3;
-
-    sumPromedio.textContent = formatCurrency(total);
-    valPromedio.textContent = formatCurrency(promedio);
-    resultPromedio.style.display = 'block';
-
-    showToast('Promedio calculado correctamente', 'success');
-  });
-
-  // Permitir Enter para calcular
-  [inputA, inputB, inputC].forEach(input => {
-    input.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        btnPromedio.click();
-      }
-    });
-  });
-
   // ========== CALCULADORA 2: IVA ==========
   const btnIva = document.getElementById('calc-iva-btn');
   const inputIvaPorcentaje = document.getElementById('calc-iva-porcentaje');

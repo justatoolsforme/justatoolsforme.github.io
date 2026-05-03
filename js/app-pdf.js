@@ -1,478 +1,393 @@
-/* ============================================================
-   TUFI TOOLS — app-pdf.js
-   Responsabilidades:
-   1. Convertidor de imágenes a PDF A4 horizontal (con modo rotación)
-   2. Fusionador de múltiples PDFs en un solo documento
-   ============================================================ */
 'use strict';
 
-/* ========== SECCIÓN 1: IMG → PDF ========== */
+(function initPdfComposer() {
+  const utils = window.TufiPdfUtils;
+  if (!utils) return;
 
-/* ── Estado IMG to PDF ────────────────────────────────────── */
-let pdfImages = [];
-let pdfConversionMode = 'default'; // 'default' o 'rotate'
-let imageRotations = {}; // { index: degrees }
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const previewWrapper = document.getElementById('previewWrapper');
+  const previewGrid = document.getElementById('previewGrid');
+  const previewCount = document.getElementById('previewCount');
+  const convertBtn = document.getElementById('pdf-convert');
+  const convertLabel = document.getElementById('pdf-convert-label');
+  const addMoreBtn = document.getElementById('addMoreBtn');
+  const clearBtn = document.getElementById('pdf-clear');
+  const selectBtn = document.getElementById('dz-select-btn');
+  const filenameInput = document.getElementById('pdf-filename');
 
-/* ── Dimensiones A4 Horizontal (mm) ────────────────────────– */
-const PAGE_W = 297;
-const PAGE_H = 210;
+  let composerItems = [];
+  let draggedItemId = null;
 
-/* ── Referencias DOM IMG to PDF ────────────────────────────– */
-const dropzone       = document.getElementById('dropzone');
-const fileInput      = document.getElementById('fileInput');
-const previewWrapper = document.getElementById('previewWrapper');
-const previewGrid    = document.getElementById('previewGrid');
-const previewCount   = document.getElementById('previewCount');
-const convertBtn     = document.getElementById('pdf-convert');
-const addMoreBtn     = document.getElementById('addMoreBtn');
-const modeButtons    = document.querySelectorAll('.option-btn[data-mode]');
-const rotateOptions  = document.getElementById('rotateOptions');
-const badgeMode      = document.getElementById('badgeMode');
-const previewRotatePanel = document.getElementById('previewRotatePanel');
-
-/* ========== MODO DE CONVERSIÓN ========== */
-modeButtons?.forEach(btn => {
-  btn.addEventListener('click', function() {
-    modeButtons.forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
-    
-    pdfConversionMode = this.dataset.mode;
-    
-    if (rotateOptions) {
-      rotateOptions.style.display = pdfConversionMode === 'rotate' ? 'block' : 'none';
-    }
-    if (previewRotatePanel) {
-      previewRotatePanel.style.display = pdfConversionMode === 'rotate' ? 'block' : 'none';
-    }
-    
-    if (badgeMode) {
-      badgeMode.textContent = pdfConversionMode === 'rotate' ? '🔄 Rotación manual' : '↻ Auto-rotación';
-    }
-    
-    if (pdfImages.length > 0) {
-      renderPdfPreviews();
-    }
-  });
-});
-
-/* ── Drag & Drop IMG to PDF ────────────────────────────────– */
-dropzone?.addEventListener('dragover', e => {
-  e.preventDefault();
-  dropzone.classList.add('drag-over');
-});
-
-dropzone?.addEventListener('dragleave', e => {
-  if (!dropzone.contains(e.relatedTarget))
-    dropzone.classList.remove('drag-over');
-});
-
-dropzone?.addEventListener('drop', e => {
-  e.preventDefault();
-  dropzone.classList.remove('drag-over');
-  handlePdfFiles(e.dataTransfer.files);
-});
-
-dropzone?.addEventListener('click', e => {
-  if (e.target.closest('.dz-btn')) return;
-  fileInput?.click();
-});
-
-document.getElementById('dz-select-btn')?.addEventListener('click', e => {
-  e.stopPropagation();
-  fileInput?.click();
-});
-
-fileInput?.addEventListener('change', () => {
-  handlePdfFiles(fileInput.files);
-  fileInput.value = '';
-});
-
-addMoreBtn?.addEventListener('click', () => fileInput?.click());
-
-/* ── Pegar imagen desde portapapeles (Ctrl+V) ────────────── */
-document.addEventListener('paste', e => {
-  const pdfView = document.getElementById('view-convertpdf');
-  if (!pdfView?.classList.contains('active')) return;
-
-  const items = Array.from(e.clipboardData?.items || []);
-
-  const imageItems = items.filter(it => it.type.startsWith('image/'));
-  if (imageItems.length) {
-    e.preventDefault();
-    const files = imageItems.map(it => it.getAsFile()).filter(Boolean);
-    if (files.length) {
-      handlePdfFiles(files);
-      showToast(`✓ ${files.length} imagen(es) pegada(s) desde portapapeles`);
-      return;
-    }
+  function createItemId() {
+    return `pdf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
-  const fileItems = items.filter(it => it.kind === 'file' && it.type.startsWith('image/'));
-  if (fileItems.length) {
-    e.preventDefault();
-    const files = fileItems.map(it => it.getAsFile()).filter(Boolean);
-    if (files.length) {
-      handlePdfFiles(files);
-      showToast(`✓ ${files.length} imagen(es) pegada(s)`);
+  function getSafeFilename() {
+    const rawName = filenameInput?.value.trim() || 'documento';
+    return rawName.replace(/\.pdf$/i, '') + '.pdf';
+  }
+
+  function getPdfRenderer() {
+    const renderer = window.pdfjsLib;
+    if (!renderer) return null;
+
+    if (!renderer.GlobalWorkerOptions.workerSrc) {
+      renderer.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
-  }
-});
 
-/* ── Procesar archivos IMG to PDF ──────────────────────────– */
-function handlePdfFiles(files) {
-  const imgs = Array.from(files).filter(f => f && f.type.startsWith('image/'));
-  if (!imgs.length) {
-    showToast('⚠ Solo se aceptan imágenes (PNG, JPG, WEBP, GIF, BMP)');
-    return;
+    return renderer;
   }
 
-  let loaded = 0;
-  imgs.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      pdfImages.push({
-        dataUrl: ev.target.result,
-        name: file.name || 'imagen-pegada.jpg'
-      });
-      if (++loaded === imgs.length) renderPdfPreviews();
-    };
-    reader.readAsDataURL(file);
-  });
-}
+  function getItemDetail(item) {
+    if (item.type === 'pdf') {
+      return `${item.pageCount} pagina${item.pageCount === 1 ? '' : 's'}`;
+    }
 
-/* ── Renderizar previsualización IMG to PDF ────────────────– */
-function renderPdfPreviews() {
-  previewGrid.innerHTML = '';
+    if (!item.rotation) return 'Rotacion: 0°';
+    return `Rotacion: ${item.rotation}°`;
+  }
 
-  pdfImages.forEach((img, i) => {
-    const item = document.createElement('div');
-    item.className = 'preview-item';
-    
-    let rotateControls = '';
-    if (pdfConversionMode === 'rotate') {
-      const currentRotation = imageRotations[i] || 0;
-      rotateControls = `
-        <div class="preview-rotate-controls">
-          <button class="rotate-btn" data-idx="${i}" data-angle="-90" title="Rotar -90°">↺</button>
-          <span class="rotate-angle">${currentRotation}°</span>
-          <button class="rotate-btn" data-idx="${i}" data-angle="90" title="Rotar +90°">↻</button>
+  function updateComposerState() {
+    const total = composerItems.length;
+    previewCount.textContent = `${total} archivo${total === 1 ? '' : 's'}`;
+    previewWrapper.style.display = total ? 'block' : 'none';
+    convertBtn.disabled = total === 0;
+  }
+
+  function clearDragState() {
+    previewGrid.querySelectorAll('.preview-item').forEach(item => {
+      item.classList.remove('drag-over', 'dragging');
+    });
+  }
+
+  function renderPdfPreviewMarkup(item) {
+    if (item.previewDataUrl) {
+      return `<img src="${utils.escapeHtml(item.previewDataUrl)}" alt="${utils.escapeHtml(item.name)}">`;
+    }
+
+    return `
+      <div class="preview-pdf">
+        <div class="preview-pdf-icon">PDF</div>
+        <div class="preview-pdf-pages">${item.pageCount} pagina${item.pageCount === 1 ? '' : 's'}</div>
+      </div>
+    `;
+  }
+
+  function renderComposerItems() {
+    previewGrid.innerHTML = '';
+
+    composerItems.forEach((item, index) => {
+      const element = document.createElement('div');
+      element.className = 'preview-item';
+      element.draggable = true;
+      element.dataset.id = item.id;
+
+      const previewBody = item.type === 'image'
+        ? `
+          <div class="preview-media">
+            <img src="${utils.escapeHtml(item.dataUrl)}" alt="${utils.escapeHtml(item.name)}" style="transform: rotate(${item.rotation}deg) scale(${item.rotation % 180 === 0 ? 1 : 0.78});">
+          </div>
+        `
+        : `
+          <div class="preview-media">
+            ${renderPdfPreviewMarkup(item)}
+          </div>
+        `;
+
+      const rotateButton = item.type === 'image'
+        ? '<button class="preview-control-btn preview-rotate-left" data-id="' + item.id + '" title="Rotar a la izquierda">↺</button>'
+        : '';
+
+      element.innerHTML = `
+        ${previewBody}
+        <div class="preview-order">${index + 1}</div>
+        <div class="preview-file-badge">${item.type === 'image' ? 'IMG' : 'PDF'}</div>
+        <div class="preview-item-actions">
+          ${rotateButton}
+          <button class="preview-control-btn preview-remove" data-id="${item.id}" title="Eliminar">×</button>
+        </div>
+        <div class="preview-meta">
+          <div class="preview-name">${utils.escapeHtml(item.name)}</div>
+          <div class="preview-detail">${utils.escapeHtml(getItemDetail(item))}</div>
         </div>
       `;
-    }
-    
-    item.innerHTML = `
-      <img src="${escHtml(img.dataUrl)}" alt="${escHtml(img.name)}" loading="lazy">
-      <div class="preview-order">${i + 1}</div>
-      <button class="preview-remove" data-idx="${i}" title="Eliminar">×</button>
-      <div class="preview-name">${escHtml(img.name)}</div>
-      ${rotateControls}
-    `;
-    previewGrid.appendChild(item);
-  });
 
-  previewGrid.querySelectorAll('.rotate-btn').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const idx = parseInt(btn.dataset.idx, 10);
-      const angle = parseInt(btn.dataset.angle, 10);
-      imageRotations[idx] = (imageRotations[idx] || 0) + angle;
-      imageRotations[idx] = ((imageRotations[idx] % 360) + 360) % 360;
-      renderPdfPreviews();
+      element.addEventListener('dragstart', event => {
+        draggedItemId = item.id;
+        event.dataTransfer.effectAllowed = 'move';
+        element.classList.add('dragging');
+      });
+
+      element.addEventListener('dragend', () => {
+        draggedItemId = null;
+        clearDragState();
+      });
+
+      element.addEventListener('dragover', event => {
+        event.preventDefault();
+        if (draggedItemId && draggedItemId !== item.id) {
+          element.classList.add('drag-over');
+          event.dataTransfer.dropEffect = 'move';
+        }
+      });
+
+      element.addEventListener('dragleave', event => {
+        if (!element.contains(event.relatedTarget)) {
+          element.classList.remove('drag-over');
+        }
+      });
+
+      element.addEventListener('drop', event => {
+        event.preventDefault();
+        const fromIndex = composerItems.findIndex(entry => entry.id === draggedItemId);
+        const toIndex = composerItems.findIndex(entry => entry.id === item.id);
+
+        if (fromIndex >= 0 && toIndex >= 0 && fromIndex !== toIndex) {
+          composerItems = utils.reorder(composerItems, fromIndex, toIndex);
+          renderComposerItems();
+        }
+      });
+
+      previewGrid.appendChild(element);
     });
-  });
 
-  previewGrid.querySelectorAll('.preview-remove').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const idx = parseInt(btn.dataset.idx, 10);
-      pdfImages.splice(idx, 1);
-      delete imageRotations[idx];
-      renderPdfPreviews();
+    previewGrid.querySelectorAll('.preview-remove').forEach(button => {
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        composerItems = composerItems.filter(item => item.id !== button.dataset.id);
+        renderComposerItems();
+      });
     });
-  });
 
-  const n = pdfImages.length;
-  previewCount.textContent = `${n} imagen${n !== 1 ? 'es' : ''}`;
-  previewWrapper.style.display = n > 0 ? 'block' : 'none';
-  if (previewRotatePanel) {
-    previewRotatePanel.style.display = pdfConversionMode === 'rotate' && n > 0 ? 'block' : 'none';
+    previewGrid.querySelectorAll('.preview-rotate-left').forEach(button => {
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        const item = composerItems.find(entry => entry.id === button.dataset.id);
+        if (!item) return;
+        item.rotation = ((item.rotation || 0) + 270) % 360;
+        renderComposerItems();
+      });
+    });
+
+    updateComposerState();
   }
-  convertBtn.disabled = n === 0;
-}
 
-/* ── Limpiar IMG to PDF ────────────────────────────────────– */
-document.getElementById('pdf-clear')?.addEventListener('click', () => {
-  pdfImages = [];
-  imageRotations = {};
-  previewGrid.innerHTML = '';
-  previewWrapper.style.display = 'none';
-  if (previewRotatePanel) previewRotatePanel.style.display = 'none';
-  convertBtn.disabled = true;
-  document.getElementById('pdf-filename').value = 'documento';
-  showToast('🗑 Imágenes eliminadas');
-});
+  async function renderPdfPreview(pdfBytes) {
+    const renderer = getPdfRenderer();
+    if (!renderer) return null;
 
-/* ── CONVERTIR Y DESCARGAR PDF IMG to PDF ──────────────────– */
-convertBtn?.addEventListener('click', async () => {
-  if (!pdfImages.length) return;
+    const loadingTask = renderer.getDocument({
+      data: pdfBytes instanceof Uint8Array ? pdfBytes : new Uint8Array(pdfBytes),
+      disableWorker: true
+    });
 
-  const rawName  = document.getElementById('pdf-filename').value.trim() || 'documento';
-  const filename = rawName.replace(/\.pdf$/i, '') + '.pdf';
-  const label    = document.getElementById('pdf-convert-label');
-  const origText = label.textContent;
+    const pdf = await loadingTask.promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 1 });
+    const targetWidth = 320;
+    const scale = targetWidth / viewport.width;
+    const scaledViewport = page.getViewport({ scale });
 
-  convertBtn.disabled = true;
-  label.textContent = 'Generando PDF…';
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { alpha: false });
+    canvas.width = Math.ceil(scaledViewport.width);
+    canvas.height = Math.ceil(scaledViewport.height);
 
-  try {
-    if (typeof window.jspdf === 'undefined') {
-      throw new Error('jsPDF no cargó. Verificá tu conexión a internet.');
+    await page.render({
+      canvasContext: context,
+      viewport: scaledViewport
+    }).promise;
+
+    return canvas.toDataURL('image/jpeg', 0.9);
+  }
+
+  async function createComposerItem(file) {
+    if (utils.isImageFile(file)) {
+      const dataUrl = await utils.readFileAsDataUrl(file);
+      return {
+        id: createItemId(),
+        type: 'image',
+        name: file.name || 'imagen',
+        mimeType: file.type || 'image/jpeg',
+        dataUrl,
+        rotation: 0
+      };
     }
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-    for (let i = 0; i < pdfImages.length; i++) {
-      if (i > 0) doc.addPage();
-
-      const { dataUrl } = pdfImages[i];
-      const imgEl = await loadImg(dataUrl);
-
-      let finalUrl, srcW, srcH;
-
-      if (pdfConversionMode === 'default') {
-        const result = await normalizeToLandscape(imgEl);
-        finalUrl = result.url;
-        srcW = result.w;
-        srcH = result.h;
-      } else {
-        const customRotation = imageRotations[i] || 0;
-        const result = await rotateImageByAngle(imgEl, customRotation);
-        finalUrl = result.url;
-        srcW = result.w;
-        srcH = result.h;
+    if (utils.isPdfFile(file)) {
+      if (typeof window.PDFLib === 'undefined') {
+        throw new Error('PDF-lib no esta disponible para leer PDFs');
       }
 
-      const scale = Math.min(PAGE_W / srcW, PAGE_H / srcH);
-      const drawW = srcW * scale;
-      const drawH = srcH * scale;
-      const x     = (PAGE_W - drawW) / 2;
-      const y     = (PAGE_H - drawH) / 2;
+      const arrayBuffer = await utils.readFileAsArrayBuffer(file);
+      const originalBytes = new Uint8Array(arrayBuffer);
+      const storedPdfBytes = originalBytes.slice();
+      const countPdfBytes = originalBytes.slice();
+      const previewPdfBytes = originalBytes.slice();
 
-      const fmt = finalUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
-      doc.addImage(finalUrl, fmt, x, y, drawW, drawH);
+      const pdfDoc = await window.PDFLib.PDFDocument.load(countPdfBytes);
+      const previewDataUrl = await renderPdfPreview(previewPdfBytes).catch(error => {
+        console.warn('[PDF Preview]', error);
+        return null;
+      });
+
+      return {
+        id: createItemId(),
+        type: 'pdf',
+        name: file.name || 'documento.pdf',
+        pdfBytes: storedPdfBytes,
+        pageCount: pdfDoc.getPageCount(),
+        previewDataUrl
+      };
     }
 
-    doc.save(filename);
-    showToast(`✓ PDF generado: ${filename}`);
-
-  } catch (err) {
-    console.error('[PDF]', err);
-    showToast(`⚠ Error: ${err.message}`);
-  } finally {
-    label.textContent = origText;
-    convertBtn.disabled = pdfImages.length === 0;
-  }
-});
-
-/* ========== SECCIÓN 2: PDF to PDF (MERGER) ========== */
-
-/* ── Estado PDF to PDF ─────────────────────────────────────– */
-let mergePdfs = [];
-
-/* ── Referencias DOM PDF to PDF ─────────────────────────────– */
-const mergeDropzone        = document.getElementById('mergeDropzone');
-const mergeFileInput       = document.getElementById('mergeFileInput');
-const mergePreviewWrapper  = document.getElementById('mergePreviewWrapper');
-const mergePreviewList     = document.getElementById('mergePreviewList');
-const mergePreviewCount    = document.getElementById('mergePreviewCount');
-const mergeClearBtn        = document.getElementById('pdf-merge-clear');
-const mergeConvertBtn      = document.getElementById('pdf-merge-convert');
-const addMorePdfsBtn       = document.getElementById('addMorePdfsBtn');
-
-/* ── Drag & Drop PDF to PDF ────────────────────────────────– */
-mergeDropzone?.addEventListener('dragover', e => {
-  e.preventDefault();
-  mergeDropzone.classList.add('drag-over');
-});
-
-mergeDropzone?.addEventListener('dragleave', e => {
-  if (!mergeDropzone.contains(e.relatedTarget))
-    mergeDropzone.classList.remove('drag-over');
-});
-
-mergeDropzone?.addEventListener('drop', e => {
-  e.preventDefault();
-  mergeDropzone.classList.remove('drag-over');
-  handleMergePdfFiles(e.dataTransfer.files);
-});
-
-mergeDropzone?.addEventListener('click', e => {
-  if (e.target.closest('.dz-btn')) return;
-  mergeFileInput?.click();
-});
-
-document.getElementById('merge-select-btn')?.addEventListener('click', e => {
-  e.stopPropagation();
-  mergeFileInput?.click();
-});
-
-mergeFileInput?.addEventListener('change', () => {
-  handleMergePdfFiles(mergeFileInput.files);
-  mergeFileInput.value = '';
-});
-
-addMorePdfsBtn?.addEventListener('click', () => mergeFileInput?.click());
-
-/* ── Procesar archivos PDF to PDF ──────────────────────────– */
-function handleMergePdfFiles(files) {
-  const pdfs = Array.from(files).filter(f => f && f.type === 'application/pdf');
-  if (!pdfs.length) {
-    showToast('⚠ Solo se aceptan archivos PDF');
-    return;
+    return null;
   }
 
-  let loaded = 0;
-  pdfs.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      mergePdfs.push({
-        arrayBuffer: ev.target.result,
-        name: file.name || 'documento.pdf'
-      });
-      if (++loaded === pdfs.length) renderMergePreviews();
-    };
-    reader.readAsArrayBuffer(file);
-  });
-}
+  async function handleComposerFiles(fileList) {
+    const files = Array.from(fileList || []);
+    const accepted = files.filter(file => utils.isImageFile(file) || utils.isPdfFile(file));
 
-/* ── Renderizar previsualización PDF to PDF ────────────────– */
-function renderMergePreviews() {
-  mergePreviewList.innerHTML = '';
+    if (!accepted.length) {
+      showToast('⚠ Solo se aceptan imagenes o archivos PDF');
+      return;
+    }
 
-  mergePdfs.forEach((pdf, i) => {
-    const item = document.createElement('div');
-    item.className = 'merge-preview-item';
-    item.innerHTML = `
-      <div class="merge-item-order">${i + 1}</div>
-      <div class="merge-item-info">
-        <div class="merge-item-name">${escHtml(pdf.name)}</div>
-      </div>
-      <button class="merge-item-remove" data-idx="${i}" title="Eliminar">×</button>
-    `;
-    mergePreviewList.appendChild(item);
-  });
+    try {
+      const items = [];
 
-  mergePreviewList.querySelectorAll('.merge-item-remove').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const idx = parseInt(btn.dataset.idx, 10);
-      mergePdfs.splice(idx, 1);
-      renderMergePreviews();
+      for (const file of accepted) {
+        const item = await createComposerItem(file);
+        if (item) items.push(item);
+      }
+
+      composerItems = [...composerItems, ...items];
+      renderComposerItems();
+      showToast(`✓ ${items.length} archivo(s) agregado(s)`);
+    } catch (error) {
+      console.error('[PDF Composer]', error);
+      showToast(`⚠ Error al cargar archivos: ${error.message}`);
+    }
+  }
+
+  async function appendImagePage(pdfDoc, item) {
+    let imageDataUrl = item.dataUrl;
+
+    if (item.rotation) {
+      const rotated = await utils.rotateImageDataUrl(item.dataUrl, item.rotation, item.mimeType);
+      imageDataUrl = rotated.dataUrl;
+    }
+
+    const imageData = utils.dataUrlToUint8Array(imageDataUrl);
+    const embeddedImage = imageData.mimeType === 'image/png'
+      ? await pdfDoc.embedPng(imageData.bytes)
+      : await pdfDoc.embedJpg(imageData.bytes);
+
+    const page = pdfDoc.addPage([embeddedImage.width, embeddedImage.height]);
+    page.drawImage(embeddedImage, {
+      x: 0,
+      y: 0,
+      width: embeddedImage.width,
+      height: embeddedImage.height
     });
-  });
-
-  const n = mergePdfs.length;
-  mergePreviewCount.textContent = `${n} PDF${n !== 1 ? 's' : ''}`;
-  mergePreviewWrapper.style.display = n > 0 ? 'block' : 'none';
-  mergeConvertBtn.disabled = n < 2;
-}
-
-/* ── Limpiar PDF to PDF ────────────────────────────────────– */
-mergeClearBtn?.addEventListener('click', () => {
-  mergePdfs = [];
-  mergePreviewList.innerHTML = '';
-  mergePreviewWrapper.style.display = 'none';
-  mergeConvertBtn.disabled = true;
-  document.getElementById('pdf-merge-filename').value = 'document';
-  showToast('🗑 PDFs eliminados');
-});
-
-/* ── MEZCLAR Y DESCARGAR PDF ───────────────────────────────– */
-mergeConvertBtn?.addEventListener('click', async () => {
-  if (mergePdfs.length < 2) return;
-
-  const rawName  = document.getElementById('pdf-merge-filename').value.trim() || 'document';
-  const filename = rawName.replace(/\.pdf$/i, '') + '.pdf';
-
-  mergeConvertBtn.disabled = true;
-  const origText = mergeConvertBtn.textContent;
-  mergeConvertBtn.textContent = 'Mezclando PDFs…';
-
-  try {
-    // Nota: Esta es una versión simplificada. Para mezclar PDFs reales,
-    // necesitarías una librería como PDF-lib, pero por ahora una alternativa más simple.
-    showToast('⚠ Función de mezcla en desarrollo. Será actualizada pronto con capacidad completa.');
-  } catch (err) {
-    console.error('[PDF Merge]', err);
-    showToast(`⚠ Error: ${err.message}`);
-  } finally {
-    mergeConvertBtn.textContent = origText;
-    mergeConvertBtn.disabled = mergePdfs.length < 2;
-  }
-});
-
-/* ============================================================
-   HELPERS PRIVADOS
-   ============================================================ */
-
-function loadImg(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload  = () => resolve(img);
-    img.onerror = () => reject(new Error('No se pudo cargar la imagen'));
-    img.src = src;
-  });
-}
-
-async function normalizeToLandscape(imgEl) {
-  const natW = imgEl.naturalWidth;
-  const natH = imgEl.naturalHeight;
-
-  if (natW >= natH) {
-    return { url: imgEl.src, w: natW, h: natH };
   }
 
-  const canvas = document.createElement('canvas');
-  canvas.width  = natH;
-  canvas.height = natW;
+  async function appendPdfPages(pdfDoc, item) {
+    const sourceDoc = await window.PDFLib.PDFDocument.load(item.pdfBytes.slice());
+    const pages = await pdfDoc.copyPages(sourceDoc, sourceDoc.getPageIndices());
+    pages.forEach(page => pdfDoc.addPage(page));
+  }
 
-  const ctx = canvas.getContext('2d');
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(Math.PI / 2);
-  ctx.drawImage(imgEl, -natW / 2, -natH / 2);
+  async function exportCombinedPdf() {
+    if (!composerItems.length) return;
+    if (typeof window.PDFLib === 'undefined') {
+      showToast('⚠ PDF-lib no esta disponible');
+      return;
+    }
 
-  const url = canvas.toDataURL('image/jpeg', 0.93);
-  return { url, w: canvas.width, h: canvas.height };
-}
+    const originalLabel = convertLabel.textContent;
+    convertBtn.disabled = true;
+    convertLabel.textContent = 'Generando PDF...';
 
-async function rotateImageByAngle(imgEl, degrees) {
-  const natW = imgEl.naturalWidth;
-  const natH = imgEl.naturalHeight;
-  const rad = (degrees * Math.PI) / 180;
+    try {
+      const pdfDoc = await window.PDFLib.PDFDocument.create();
 
-  const cos = Math.abs(Math.cos(rad));
-  const sin = Math.abs(Math.sin(rad));
-  const newW = natW * cos + natH * sin;
-  const newH = natW * sin + natH * cos;
+      for (const item of composerItems) {
+        if (item.type === 'pdf') await appendPdfPages(pdfDoc, item);
+        else await appendImagePage(pdfDoc, item);
+      }
 
-  const canvas = document.createElement('canvas');
-  canvas.width  = newW;
-  canvas.height = newH;
+      const bytes = await pdfDoc.save();
+      utils.saveBlob(new Blob([bytes], { type: 'application/pdf' }), getSafeFilename());
+      showToast(`✓ PDF generado: ${getSafeFilename()}`);
+    } catch (error) {
+      console.error('[PDF Composer]', error);
+      showToast(`⚠ Error al generar PDF: ${error.message}`);
+    } finally {
+      convertLabel.textContent = originalLabel;
+      convertBtn.disabled = composerItems.length === 0;
+    }
+  }
 
-  const ctx = canvas.getContext('2d');
-  ctx.translate(newW / 2, newH / 2);
-  ctx.rotate(rad);
-  ctx.drawImage(imgEl, -natW / 2, -natH / 2);
+  function resetComposer() {
+    composerItems = [];
+    previewGrid.innerHTML = '';
+    filenameInput.value = 'documento';
+    updateComposerState();
+    showToast('🗑 Archivos eliminados');
+  }
 
-  const url = canvas.toDataURL('image/jpeg', 0.93);
-  return { url, w: newW, h: newH };
-}
+  dropzone?.addEventListener('dragover', event => {
+    event.preventDefault();
+    dropzone.classList.add('drag-over');
+  });
 
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+  dropzone?.addEventListener('dragleave', event => {
+    if (!dropzone.contains(event.relatedTarget)) {
+      dropzone.classList.remove('drag-over');
+    }
+  });
+
+  dropzone?.addEventListener('drop', event => {
+    event.preventDefault();
+    dropzone.classList.remove('drag-over');
+    handleComposerFiles(event.dataTransfer.files);
+  });
+
+  dropzone?.addEventListener('click', event => {
+    if (!event.target.closest('.dz-btn')) fileInput?.click();
+  });
+
+  selectBtn?.addEventListener('click', event => {
+    event.stopPropagation();
+    fileInput?.click();
+  });
+
+  fileInput?.addEventListener('change', () => {
+    handleComposerFiles(fileInput.files);
+    fileInput.value = '';
+  });
+
+  addMoreBtn?.addEventListener('click', () => fileInput?.click());
+  clearBtn?.addEventListener('click', resetComposer);
+  convertBtn?.addEventListener('click', exportCombinedPdf);
+
+  document.addEventListener('paste', event => {
+    const pdfView = document.getElementById('view-convertpdf');
+    if (!pdfView?.classList.contains('active')) return;
+
+    const items = Array.from(event.clipboardData?.items || []);
+    const imageFiles = items
+      .filter(item => item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter(Boolean);
+
+    if (!imageFiles.length) return;
+
+    event.preventDefault();
+    handleComposerFiles(imageFiles);
+  });
+
+  updateComposerState();
+})();

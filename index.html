@@ -33,6 +33,10 @@
           <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 9h18M9 21V9"/></svg></span>
           <span class="nav-text">Form Contact</span>
         </button>
+        <button class="nav-btn" data-view="busqueda" data-tooltip="Busqueda de clientes">
+          <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg></span>
+          <span class="nav-text">Busqueda</span>
+        </button>
         <button class="nav-btn" data-view="convertpdf" data-tooltip="IMG → PDF">
           <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg></span>
           <span class="nav-text">IMG → PDF</span>
@@ -98,10 +102,16 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Nuevo
       </button>
-      <button class="btn btn-sm btn-ghost" id="downloadAllBtn" title="Descargar todos los clientes">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Todos
-      </button>
+      <div class="action-menu" id="exportAllMenu">
+        <button class="btn btn-sm btn-ghost action-menu-trigger" id="exportAllMenuBtn" type="button" aria-expanded="false" title="Exportar todos los clientes">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar Todo
+        </button>
+        <div class="action-menu-dropdown" id="exportAllDropdown" hidden>
+          <button class="action-menu-item" id="exportAllZipBtn" type="button">ZIP con JSON + TXT</button>
+          <button class="action-menu-item" id="downloadAllBtn" type="button">TXT conjunto</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -128,6 +138,20 @@
     </div>
 
     <form id="creditForm" autocomplete="off">
+
+      <div class="form-section">
+        <div class="section-label">Origen del Cliente</div>
+        <div class="form-grid">
+          <div class="field field-full">
+            <label for="fc-origen">Canal de Origen</label>
+            <select id="fc-origen" required>
+              <option value="WhatsApp" selected>WhatsApp</option>
+              <option value="Mercately">Mercately</option>
+              <option value="Facebook">Facebook</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
       <div class="form-section">
         <div class="section-label">Datos Personales</div>
@@ -333,12 +357,77 @@
 
     
 
-    <!-- VIEW 2: IMG → PDF -->
+    <!-- VIEW 2: IMG / PDF → PDF -->
+<section class="view" id="view-busqueda">
+  <div class="view-header">
+    <div>
+      <h1 class="view-title">Busqueda</h1>
+      <p class="view-subtitle">Busqueda filtrada por origen, nombre, apellido, cedula y otros datos del cliente</p>
+    </div>
+  </div>
+
+  <div class="search-shell">
+    <div class="search-toolbar">
+      <div class="field search-field-grow">
+        <label for="cs-query">Busqueda Rapida</label>
+        <input type="text" id="cs-query" placeholder="Nombre, apellido, cedula, celular, empresa, CECOT...">
+      </div>
+      <div class="field">
+        <label for="cs-source">Origen</label>
+        <select id="cs-source">
+          <option value="ALL">Todos</option>
+          <option value="WhatsApp">WhatsApp</option>
+          <option value="Mercately">Mercately</option>
+          <option value="Facebook">Facebook</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="cs-field">Buscar En</label>
+        <select id="cs-field">
+          <option value="all">Todo</option>
+          <option value="nombres">Nombre</option>
+          <option value="apellidos">Apellido</option>
+          <option value="cedula">Cedula</option>
+          <option value="celular">Celular</option>
+          <option value="empresa">Empresa</option>
+          <option value="origen">Origen</option>
+          <option value="ciudad">Ciudad</option>
+          <option value="direccion">Direccion</option>
+          <option value="referencias">Referencias</option>
+          <option value="monto">Monto / Plazo</option>
+          <option value="entidades">Entidades</option>
+          <option value="ips">CECOT / ID Empleador</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="cs-stage">Etapa</label>
+        <select id="cs-stage">
+          <option value="ALL">Todas</option>
+          <option value="EN_PROCESO">EN PROCESO</option>
+          <option value="APROBADO">APROBADO</option>
+          <option value="OFERTA_REALIZADA">OFERTA REALIZADA</option>
+          <option value="NUEVOS">NUEVOS</option>
+          <option value="RECHAZADOS">RECHAZADOS</option>
+        </select>
+      </div>
+      <button class="btn btn-ghost search-clear-btn" id="cs-clear" type="button">Limpiar filtros</button>
+    </div>
+
+    <div class="search-summary">
+      <span class="search-count" id="cs-count">0 resultados</span>
+      <span class="search-hint">Abri un resultado para cargarlo directo en Form Contact</span>
+    </div>
+
+    <div class="search-results" id="cs-results"></div>
+  </div>
+</section>
+
+    <!-- VIEW 3: IMG / PDF â†’ PDF -->
     <section class="view" id="view-convertpdf">
       <div class="view-header">
         <div>
-          <h1 class="view-title">IMG → PDF</h1>
-          <p class="view-subtitle">Imágenes a PDF A4 horizontal — auto-rotación de verticales</p>
+          <h1 class="view-title">IMG / PDF → PDF</h1>
+          <p class="view-subtitle">Mezclá imágenes y PDFs en un solo archivo, con orden manual y rotación por imagen</p>
         </div>
         <div class="view-actions">
           <button class="btn btn-ghost" id="pdf-clear">
@@ -364,27 +453,27 @@
           <div class="config-badges">
             <span class="badge">A4</span>
             <span class="badge">Horizontal</span>
-            <span class="badge">297 × 210 mm</span>
-            <span class="badge">Sin márgenes</span>
-            <span class="badge">↻ Auto-rotación</span>
+            <span class="badge">PDF + Imagen</span>
+            <span class="badge">Drag &amp; Drop</span>
+            <span class="badge">Rotación manual</span>
           </div>
         </div>
 
         <div class="dropzone" id="dropzone">
-          <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
+          <input type="file" id="fileInput" multiple accept="image/*,.pdf,application/pdf" style="display:none">
           <div class="dropzone-inner">
             <div class="dz-icon">
               <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             </div>
-            <p class="dz-title">Arrastrá imágenes aquí</p>
-            <p class="dz-sub">PNG, JPG, WEBP · <kbd>Ctrl+V</kbd> para pegar · Las imágenes verticales se rotan a horizontal automáticamente</p>
+            <p class="dz-title">Arrastrá imágenes o PDFs aquí</p>
+            <p class="dz-sub">PNG, JPG, WEBP y PDF · <kbd>Ctrl+V</kbd> para pegar imágenes · Arrastrá las tarjetas para ordenar</p>
             <button type="button" class="btn btn-secondary dz-btn" id="dz-select-btn">Seleccionar archivos</button>
           </div>
         </div>
 
         <div class="preview-wrapper" id="previewWrapper" style="display:none">
           <div class="preview-bar">
-            <span class="preview-count" id="previewCount">0 imágenes</span>
+            <span class="preview-count" id="previewCount">0 archivos</span>
             <button class="btn-link" id="addMoreBtn">+ Agregar más</button>
           </div>
           <div class="preview-grid" id="previewGrid"></div>
@@ -438,6 +527,51 @@
             <div class="result-item result-highlight">
               <span class="result-label">Promedio:</span>
               <span class="result-value" id="calc-promedio-valor">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="calc-card">
+          <div class="calc-title">Promedio de Ganancias 6</div>
+          <p class="calc-desc">Calcula el promedio de 6 montos: (A + B + C + D + E + F) / 6</p>
+
+          <div class="calc-form">
+            <div class="calc-field">
+              <label for="calc6-monto-a">Monto A (Gs.)</label>
+              <input type="number" id="calc6-monto-a" placeholder="Ej: 5000000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc6-monto-b">Monto B (Gs.)</label>
+              <input type="number" id="calc6-monto-b" placeholder="Ej: 4500000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc6-monto-c">Monto C (Gs.)</label>
+              <input type="number" id="calc6-monto-c" placeholder="Ej: 5500000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc6-monto-d">Monto D (Gs.)</label>
+              <input type="number" id="calc6-monto-d" placeholder="Ej: 5300000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc6-monto-e">Monto E (Gs.)</label>
+              <input type="number" id="calc6-monto-e" placeholder="Ej: 4700000" step="1000">
+            </div>
+            <div class="calc-field">
+              <label for="calc6-monto-f">Monto F (Gs.)</label>
+              <input type="number" id="calc6-monto-f" placeholder="Ej: 4900000" step="1000">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="calc-promedio6-btn">Calcular Promedio</button>
+
+          <div class="calc-result" id="calc-promedio6-result" style="display:none">
+            <div class="result-item">
+              <span class="result-label">Total (A + B + C + D + E + F):</span>
+              <span class="result-value" id="calc-promedio6-suma">—</span>
+            </div>
+            <div class="result-item result-highlight">
+              <span class="result-label">Promedio:</span>
+              <span class="result-value" id="calc-promedio6-valor">—</span>
             </div>
           </div>
         </div>
@@ -709,7 +843,7 @@
               <div class="ref-arrow"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>
             </a>
 
-            <a class="ref-card" href="https://servicios.ips.gov.py/miips/inf_tarjetita_pdf.php?ide_emplea=4045&cod_period=993,992,991,990,989,988&ide_asecot=1077859&order=" target="_blank" rel="noopener noreferrer">
+            <a class="ref-card" href="https://servicios.ips.gov.py/miips/inf_tarjetita_pdf.php?ide_emplea=4045&cod_period=999,998,997,996&ide_asecot=1077859&order=" target="_blank" rel="noopener noreferrer">
               <div class="ref-badge">G</div>
               <div class="ref-info">
                 <div class="ref-title">Boletas IPS (Ejemplo)</div>
@@ -1008,14 +1142,20 @@
 <div class="toast" id="toast"></div>
 
 <!-- CDN externos -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
 
 <!-- Módulos TUFI -->
 <script src="js/app-core.js"></script>
 <script src="js/app-geo.js"></script>
 <script src="js/app-formcontact.js"></script>
+<script src="js/app-formcontact-export.js"></script>
+<script src="js/app-client-search.js"></script>
+<script src="js/app-pdf-utils.js"></script>
 <script src="js/app-pdf.js"></script>
+<script src="js/app-calculadora-promedios.js"></script>
 <script src="js/app-calculadora.js"></script>
 </body>
 </html>

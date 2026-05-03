@@ -11,6 +11,7 @@ const FC_STORAGE_KEY = 'tufi_formcontact_draft';
 const FC_CLIENTS_KEY = 'tufi_clients_v3';
 
 const FC_FIELD_IDS = [
+  'fc-origen',
   'fc-nombres', 'fc-apellidos', 'fc-cedula', 'fc-fechanac',
   'fc-estadocivil', 'fc-celular',
   'fc-ciudad-p', 'fc-barrio-p', 'fc-direccion-p',
@@ -29,6 +30,8 @@ const STAGE_LABEL = {
   RECHAZADOS:       'RECHAZADOS',
 };
 
+const FC_IGNORED_MEANINGFUL_FIELDS = new Set(['fc-etapa', 'fc-origen']);
+
 let fc_activeClientId = null;
 let fc_isDirty = false;
 
@@ -44,6 +47,16 @@ function randomId() {
   return 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
 }
 
+function fcHasMeaningfulData(data = formRead()) {
+  const hasTextData = FC_FIELD_IDS.some(id => {
+    if (FC_IGNORED_MEANINGFUL_FIELDS.has(id)) return false;
+    const value = data[id];
+    return typeof value === 'string' && value.trim() !== '';
+  });
+
+  return hasTextData || (Array.isArray(data._entidades) && data._entidades.length > 0);
+}
+
 /* ============================================================
    C. STORAGE
    ============================================================ */
@@ -53,6 +66,7 @@ function clientsLoad() {
 }
 function clientsSave(clients) {
   localStorage.setItem(FC_CLIENTS_KEY, JSON.stringify(clients));
+  window.dispatchEvent(new Event('tufi:clients-changed'));
 }
 function clientById(id) {
   return clientsLoad().find(c => c.id === id) || null;
@@ -137,6 +151,10 @@ function uiMarkClean() {
    ============================================================ */
 function saveCurrentClient(opts = {}) {
   const data    = formRead();
+  if (!fcHasMeaningfulData(data)) {
+    if (!opts.silent) showToast('âš  CompletÃ¡ al menos un dato del cliente antes de guardar');
+    return null;
+  }
   const nombres = data['fc-nombres']?.trim() || '';
   const apell   = data['fc-apellidos']?.trim() || '';
   const cedula  = data['fc-cedula']?.trim() || '';
@@ -188,10 +206,7 @@ function saveCurrentClient(opts = {}) {
 function switchToClient(newId) {
   // Guardar el actual si tiene datos
   const current = formRead();
-  const hasData = FC_FIELD_IDS.some(id => {
-    const v = current[id];
-    return typeof v === 'string' && v.trim() !== '';
-  });
+  const hasData = fcHasMeaningfulData(current);
   if (hasData) saveCurrentClient({ silent: true });
 
   const client = clientById(newId);
@@ -219,6 +234,8 @@ function fcGenerateText() {
 
   return [
     `*SOLICITUD DE CRÉDITO PARA ${entLabel}*`,
+    '',
+    `*ORIGEN:* ${get('fc-origen')}`,
     '',
     '*DATOS PERSONALES*',
     `* Nombres: ${get('fc-nombres')}`,
@@ -261,6 +278,8 @@ function fcGenerateTextForClient(client) {
 
   return [
     `*SOLICITUD DE CRÉDITO PARA ${ents}*`,
+    '',
+    `*ORIGEN:* ${g('origen')}`,
     '',
     '*DATOS PERSONALES*',
     `* Nombres: ${g('nombres')}`,
@@ -320,6 +339,10 @@ function buildFilename(client) {
 }
 
 function downloadAllClients() {
+  const currentData = formRead();
+  const hasCurrentData = fcHasMeaningfulData(currentData);
+  if (hasCurrentData) saveCurrentClient({ silent: true });
+
   const clients = clientsLoad();
   if (!clients.length) { showToast('⚠ No hay clientes guardados'); return; }
   const content = clients.map(c => `${'='.repeat(50)}\n${fcGenerateTextForClient(c)}\n`).join('\n');
@@ -522,7 +545,7 @@ function generateIpsUrl(silent) {
   const openBtn = document.getElementById('fc-openurl');
   const copyBtn = document.getElementById('fc-copyurl');
   if (!cecot || !ide) { if (!silent) showToast('⚠ Completá CECOT e ID Empleador'); return; }
-  const url = `https://servicios.ips.gov.py/miips/inf_tarjetita_pdf.php?ide_emplea=${encodeURIComponent(ide)}&cod_period=994,993,992&ide_asecot=${encodeURIComponent(cecot)}&order=`;
+  const url = `https://servicios.ips.gov.py/miips/inf_tarjetita_pdf.php?ide_emplea=${encodeURIComponent(ide)}&cod_period=999,998,997,996&ide_asecot=${encodeURIComponent(cecot)}&order=`;
   if (urlOut)  urlOut.value = url;
   if (openBtn) { openBtn.href = url; openBtn.style.display = 'inline-flex'; }
   if (copyBtn) copyBtn.style.display = 'inline-flex';
@@ -641,9 +664,7 @@ window.addEventListener('beforeunload', e => {
   document.getElementById('newClientBtn')?.addEventListener('click', () => {
     // Auto-guardar el actual
     const data = formRead();
-    const hasData = FC_FIELD_IDS.some(id => {
-      const v = data[id]; return typeof v === 'string' && v.trim() !== '';
-    });
+    const hasData = fcHasMeaningfulData(data);
     if (hasData) saveCurrentClient({ silent: true });
 
     fc_activeClientId = null;
@@ -746,3 +767,17 @@ function fallbackCopy(text) {
 
 // Alias de compatibilidad
 function fcClearFields() { formClear(); }
+
+window.TufiFormContact = {
+  buildFilename,
+  clientById,
+  clientsLoad,
+  fcHasMeaningfulData,
+  fcGenerateText,
+  fcGenerateTextForClient,
+  formRead,
+  saveCurrentClient,
+  stageLabelMap: STAGE_LABEL,
+  switchToClient,
+  getActiveClientId: () => fc_activeClientId
+};

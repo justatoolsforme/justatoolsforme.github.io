@@ -18,6 +18,13 @@
 
   let composerItems = [];
   let draggedItemId = null;
+  let dragJustEnded = false;
+  let previewModal = null;
+  let activePreviewItemId = null;
+  let activePreviewZoom = 1;
+  let activePreviewPan = { x: 0, y: 0 };
+  let previewPanDrag = null;
+  let previewRenderToken = 0;
 
   function createItemId() {
     return `pdf_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -74,6 +81,241 @@
     `;
   }
 
+  function createPdfEmptyState(item) {
+    const emptyState = document.createElement('div');
+    const icon = document.createElement('div');
+    const pages = document.createElement('div');
+
+    emptyState.className = 'pdf-preview-empty';
+    icon.className = 'preview-pdf-icon';
+    pages.className = 'preview-pdf-pages';
+    icon.textContent = 'PDF';
+    pages.textContent = `${item.pageCount} pagina${item.pageCount === 1 ? '' : 's'}`;
+
+    emptyState.append(icon, pages);
+    return emptyState;
+  }
+
+  function createPreviewContent() {
+    const content = document.createElement('div');
+    content.className = 'pdf-preview-content';
+    return content;
+  }
+
+  function updatePreviewTransform() {
+    const content = previewModal?.querySelector('.pdf-preview-content');
+    if (!content) return;
+
+    content.style.transform = `translate(${activePreviewPan.x}px, ${activePreviewPan.y}px) scale(${activePreviewZoom})`;
+    previewModal.querySelector('.pdf-preview-zoom').textContent = `${Math.round(activePreviewZoom * 100)}%`;
+  }
+
+  function renderImagePreviewStage(stage, item) {
+    const content = createPreviewContent();
+    const image = document.createElement('img');
+    const rotation = item.rotation || 0;
+
+    image.src = item.dataUrl;
+    image.alt = item.name;
+    image.style.transform = `rotate(${rotation}deg) scale(${rotation % 180 === 0 ? 1 : 0.82})`;
+
+    content.appendChild(image);
+    stage.replaceChildren(content);
+    updatePreviewTransform();
+  }
+
+  async function renderPdfPagesPreviewStage(stage, item, token) {
+    const renderer = getPdfRenderer();
+    const content = createPreviewContent();
+
+    stage.replaceChildren(content);
+    updatePreviewTransform();
+
+    if (!renderer) {
+      content.appendChild(createPdfEmptyState(item));
+      updatePreviewTransform();
+      return;
+    }
+
+    try {
+      const loadingTask = renderer.getDocument({
+        data: item.pdfBytes.slice(),
+        disableWorker: true
+      });
+      const pdf = await loadingTask.promise;
+
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        if (token !== previewRenderToken) return;
+
+        const page = await pdf.getPage(pageNumber);
+        const viewport = page.getViewport({ scale: 1 });
+        const targetWidth = 900;
+        const scale = targetWidth / viewport.width;
+        const scaledViewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d', { alpha: false });
+        const pageFrame = document.createElement('div');
+        const pageLabel = document.createElement('span');
+
+        canvas.width = Math.ceil(scaledViewport.width);
+        canvas.height = Math.ceil(scaledViewport.height);
+
+        await page.render({
+          canvasContext: context,
+          viewport: scaledViewport
+        }).promise;
+
+        if (token !== previewRenderToken) return;
+
+        pageFrame.className = 'pdf-preview-page';
+        pageLabel.className = 'pdf-preview-page-label';
+        pageLabel.textContent = `${pageNumber} / ${pdf.numPages}`;
+        pageFrame.append(canvas, pageLabel);
+        content.appendChild(pageFrame);
+      }
+
+      updatePreviewTransform();
+    } catch (error) {
+      console.warn('[PDF Preview]', error);
+      content.replaceChildren(createPdfEmptyState(item));
+      updatePreviewTransform();
+    }
+  }
+
+  function ensurePreviewModal() {
+    if (previewModal) return previewModal;
+
+    previewModal = document.createElement('div');
+    previewModal.className = 'pdf-preview-modal';
+    previewModal.innerHTML = `
+      <div class="pdf-preview-dialog" role="dialog" aria-modal="true" aria-label="Previsualizacion">
+        <div class="pdf-preview-toolbar">
+          <div class="pdf-preview-title">
+            <span class="pdf-preview-name"></span>
+            <span class="pdf-preview-detail-text"></span>
+          </div>
+          <div class="pdf-preview-actions">
+            <button type="button" class="pdf-preview-btn" data-preview-action="zoom-out" title="Disminuir zoom" aria-label="Disminuir zoom">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="m16 16 4 4"/></svg>
+            </button>
+            <span class="pdf-preview-zoom">100%</span>
+            <button type="button" class="pdf-preview-btn" data-preview-action="zoom-in" title="Aumentar zoom" aria-label="Aumentar zoom">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="M11 8v6"/><path d="m16 16 4 4"/></svg>
+            </button>
+            <button type="button" class="pdf-preview-btn pdf-preview-close" data-preview-action="close" title="Cerrar" aria-label="Cerrar previsualizacion">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="pdf-preview-stage"></div>
+      </div>
+    `;
+
+    previewModal.addEventListener('click', event => {
+      if (event.target === previewModal) closeLargePreview();
+    });
+
+    previewModal.querySelectorAll('[data-preview-action]').forEach(button => {
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        const action = button.dataset.previewAction;
+
+        if (action === 'close') closeLargePreview();
+        if (action === 'zoom-in') setPreviewZoom(activePreviewZoom + 0.15);
+        if (action === 'zoom-out') setPreviewZoom(activePreviewZoom - 0.15);
+      });
+    });
+
+    const stage = previewModal.querySelector('.pdf-preview-stage');
+    stage.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || !stage.querySelector('.pdf-preview-content')) return;
+
+      previewPanDrag = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        panX: activePreviewPan.x,
+        panY: activePreviewPan.y
+      };
+      stage.classList.add('is-panning');
+      stage.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+
+    stage.addEventListener('pointermove', event => {
+      if (!previewPanDrag || event.pointerId !== previewPanDrag.pointerId) return;
+
+      activePreviewPan = {
+        x: previewPanDrag.panX + event.clientX - previewPanDrag.startX,
+        y: previewPanDrag.panY + event.clientY - previewPanDrag.startY
+      };
+      updatePreviewTransform();
+    });
+
+    function stopPreviewPan(event) {
+      if (!previewPanDrag || event.pointerId !== previewPanDrag.pointerId) return;
+
+      stage.classList.remove('is-panning');
+      if (stage.hasPointerCapture(event.pointerId)) {
+        stage.releasePointerCapture(event.pointerId);
+      }
+      previewPanDrag = null;
+    }
+
+    stage.addEventListener('pointerup', stopPreviewPan);
+    stage.addEventListener('pointercancel', stopPreviewPan);
+
+    document.body.appendChild(previewModal);
+    return previewModal;
+  }
+
+  function setPreviewZoom(nextZoom) {
+    activePreviewZoom = Math.min(2.2, Math.max(0.55, nextZoom));
+    updatePreviewTransform();
+  }
+
+  function closeLargePreview() {
+    if (!previewModal) return;
+    previewModal.classList.remove('show');
+    activePreviewItemId = null;
+    activePreviewZoom = 1;
+    activePreviewPan = { x: 0, y: 0 };
+    previewPanDrag = null;
+    previewRenderToken += 1;
+  }
+
+  async function renderLargePreviewContent() {
+    const modal = ensurePreviewModal();
+    const item = composerItems.find(entry => entry.id === activePreviewItemId);
+    if (!item) {
+      closeLargePreview();
+      return;
+    }
+
+    const token = previewRenderToken;
+    const stage = modal.querySelector('.pdf-preview-stage');
+
+    modal.querySelector('.pdf-preview-name').textContent = item.name;
+    modal.querySelector('.pdf-preview-detail-text').textContent = getItemDetail(item);
+    modal.querySelector('.pdf-preview-zoom').textContent = `${Math.round(activePreviewZoom * 100)}%`;
+
+    if (item.type === 'image') {
+      renderImagePreviewStage(stage, item);
+      return;
+    }
+
+    await renderPdfPagesPreviewStage(stage, item, token);
+  }
+
+  function openLargePreview(itemId) {
+    activePreviewItemId = itemId;
+    activePreviewZoom = 1;
+    activePreviewPan = { x: 0, y: 0 };
+    previewRenderToken += 1;
+    renderLargePreviewContent();
+    ensurePreviewModal().classList.add('show');
+  }
+
   function renderComposerItems() {
     previewGrid.innerHTML = '';
 
@@ -121,6 +363,10 @@
 
       element.addEventListener('dragend', () => {
         draggedItemId = null;
+        dragJustEnded = true;
+        window.setTimeout(() => {
+          dragJustEnded = false;
+        }, 0);
         clearDragState();
       });
 
@@ -147,6 +393,12 @@
           composerItems = utils.reorder(composerItems, fromIndex, toIndex);
           renderComposerItems();
         }
+      });
+
+      element.addEventListener('click', event => {
+        if (dragJustEnded) return;
+        if (event.target.closest('.preview-item-actions')) return;
+        openLargePreview(item.id);
       });
 
       previewGrid.appendChild(element);
@@ -185,7 +437,7 @@
     const pdf = await loadingTask.promise;
     const page = await pdf.getPage(1);
     const viewport = page.getViewport({ scale: 1 });
-    const targetWidth = 320;
+    const targetWidth = 900;
     const scale = targetWidth / viewport.width;
     const scaledViewport = page.getViewport({ scale });
 
@@ -387,6 +639,14 @@
 
     event.preventDefault();
     handleComposerFiles(imageFiles);
+  });
+
+  document.addEventListener('keydown', event => {
+    if (!previewModal?.classList.contains('show')) return;
+
+    if (event.key === 'Escape') closeLargePreview();
+    if (event.key === '+' || event.key === '=') setPreviewZoom(activePreviewZoom + 0.15);
+    if (event.key === '-') setPreviewZoom(activePreviewZoom - 0.15);
   });
 
   updateComposerState();

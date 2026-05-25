@@ -1,6 +1,8 @@
 'use strict';
 
 (function initClientSearch() {
+  const CLIENTS_STORAGE_KEY = 'tufi_clients_v3';
+  const CURRENT_DRAFT_ID = '__current_form_draft__';
   const queryInput = document.getElementById('cs-query');
   const sourceSelect = document.getElementById('cs-source');
   const fieldSelect = document.getElementById('cs-field');
@@ -26,53 +28,138 @@
       .trim();
   }
 
+  function getClientValue(client, key) {
+    if (!client || typeof client !== 'object') return '';
+
+    const fcValue = client[`fc-${key}`];
+    if (fcValue !== undefined && fcValue !== null && String(fcValue).trim() !== '') return fcValue;
+
+    const legacyValue = client[key];
+    if (legacyValue !== undefined && legacyValue !== null) return legacyValue;
+
+    return '';
+  }
+
+  function getClientEntities(client) {
+    if (Array.isArray(client?._entidades)) return client._entidades;
+    if (Array.isArray(client?.entidades)) return client.entidades;
+    return [];
+  }
+
+  function getClientId(client) {
+    return String(client?.id || client?.clientId || '');
+  }
+
+  function getClientDisplayName(client) {
+    const displayName = String(client?.displayName || '').trim();
+    if (displayName) return displayName;
+
+    const fullName = `${getClientValue(client, 'nombres')} ${getClientValue(client, 'apellidos')}`.trim();
+    if (fullName) return fullName;
+
+    const cedula = String(getClientValue(client, 'cedula') || '').trim();
+    if (cedula) return cedula;
+
+    return 'Cliente sin nombre';
+  }
+
+  function getClientSource(client) {
+    return String(getClientValue(client, 'origen') || 'WhatsApp').trim() || 'WhatsApp';
+  }
+
+  function getClientStage(client) {
+    return String(client?.etapa || getClientValue(client, 'etapa') || 'EN_PROCESO').trim() || 'EN_PROCESO';
+  }
+
+  function loadStoredClients(api) {
+    const apiClients = api?.clientsLoad?.();
+    if (Array.isArray(apiClients) && apiClients.length) return apiClients;
+
+    try {
+      const storedClients = JSON.parse(localStorage.getItem(CLIENTS_STORAGE_KEY) || '[]');
+      return Array.isArray(storedClients) ? storedClients : [];
+    } catch {
+      return Array.isArray(apiClients) ? apiClients : [];
+    }
+  }
+
+  function buildCurrentDraftClient(api, clients) {
+    if (typeof api?.formRead !== 'function' || typeof api?.fcHasMeaningfulData !== 'function') return null;
+
+    const draft = api.formRead();
+    if (!api.fcHasMeaningfulData(draft)) return null;
+
+    const draftId = String(api.getActiveClientId?.() || draft._activeClientId || '');
+    const draftCedula = normalizeText(draft['fc-cedula']);
+    const alreadyIndexed = clients.some(client => {
+      if (draftId && getClientId(client) === draftId) return true;
+
+      const clientCedula = normalizeText(getClientValue(client, 'cedula'));
+      return Boolean(draftCedula && clientCedula && clientCedula === draftCedula);
+    });
+
+    if (alreadyIndexed) return null;
+
+    return {
+      ...draft,
+      id: CURRENT_DRAFT_ID,
+      displayName: `${draft['fc-nombres'] || ''} ${draft['fc-apellidos'] || ''}`.trim() || draft['fc-cedula'] || 'Borrador actual',
+      cedula: draft['fc-cedula'] || '',
+      etapa: draft['fc-etapa'] || 'EN_PROCESO',
+      savedAt: new Date().toISOString(),
+      _searchDraft: true
+    };
+  }
+
   function buildFieldText(client) {
     return {
       all: normalizeText([
-        client.displayName,
-        client['fc-origen'],
-        client['fc-nombres'],
-        client['fc-apellidos'],
-        client['fc-cedula'],
-        client['fc-celular'],
-        client['fc-empresa'],
-        client['fc-ciudad-p'],
-        client['fc-ciudad-l'],
-        client['fc-barrio-p'],
-        client['fc-barrio-l'],
-        client['fc-direccion-p'],
-        client['fc-direccion-l'],
-        client['fc-referencias'],
-        client['fc-monto'],
-        client['fc-plazo'],
-        client['fc-cecot'],
-        client['fc-idempleador'],
-        client.etapa,
-        ...(client._entidades || [])
+        getClientDisplayName(client),
+        getClientSource(client),
+        getClientValue(client, 'nombres'),
+        getClientValue(client, 'apellidos'),
+        getClientValue(client, 'cedula'),
+        getClientValue(client, 'celular'),
+        getClientValue(client, 'empresa'),
+        getClientValue(client, 'ciudad-p'),
+        getClientValue(client, 'ciudad-l'),
+        getClientValue(client, 'barrio-p'),
+        getClientValue(client, 'barrio-l'),
+        getClientValue(client, 'direccion-p'),
+        getClientValue(client, 'direccion-l'),
+        getClientValue(client, 'referencias'),
+        getClientValue(client, 'monto'),
+        getClientValue(client, 'plazo'),
+        getClientValue(client, 'cecot'),
+        getClientValue(client, 'idempleador'),
+        getClientStage(client),
+        ...getClientEntities(client)
       ].join(' ')),
-      nombres: normalizeText(client['fc-nombres']),
-      apellidos: normalizeText(client['fc-apellidos']),
-      cedula: normalizeText(client['fc-cedula']),
-      celular: normalizeText(client['fc-celular']),
-      empresa: normalizeText(client['fc-empresa']),
-      origen: normalizeText(client['fc-origen']),
-      ciudad: normalizeText([client['fc-ciudad-p'], client['fc-ciudad-l']].join(' ')),
+      nombres: normalizeText(getClientValue(client, 'nombres')),
+      apellidos: normalizeText(getClientValue(client, 'apellidos')),
+      cedula: normalizeText(getClientValue(client, 'cedula')),
+      celular: normalizeText(getClientValue(client, 'celular')),
+      empresa: normalizeText(getClientValue(client, 'empresa')),
+      origen: normalizeText(getClientSource(client)),
+      ciudad: normalizeText([getClientValue(client, 'ciudad-p'), getClientValue(client, 'ciudad-l')].join(' ')),
       direccion: normalizeText([
-        client['fc-direccion-p'],
-        client['fc-direccion-l'],
-        client['fc-barrio-p'],
-        client['fc-barrio-l']
+        getClientValue(client, 'direccion-p'),
+        getClientValue(client, 'direccion-l'),
+        getClientValue(client, 'barrio-p'),
+        getClientValue(client, 'barrio-l')
       ].join(' ')),
-      referencias: normalizeText(client['fc-referencias']),
-      monto: normalizeText([client['fc-monto'], client['fc-plazo']].join(' ')),
-      entidades: normalizeText((client._entidades || []).join(' ')),
-      ips: normalizeText([client['fc-cecot'], client['fc-idempleador']].join(' '))
+      referencias: normalizeText(getClientValue(client, 'referencias')),
+      monto: normalizeText([getClientValue(client, 'monto'), getClientValue(client, 'plazo')].join(' ')),
+      entidades: normalizeText(getClientEntities(client).join(' ')),
+      ips: normalizeText([getClientValue(client, 'cecot'), getClientValue(client, 'idempleador')].join(' '))
     };
   }
 
   function indexClients() {
     const api = getApi();
-    const clients = api?.clientsLoad?.() || [];
+    const storedClients = loadStoredClients(api);
+    const draftClient = buildCurrentDraftClient(api, storedClients);
+    const clients = draftClient ? [draftClient, ...storedClients] : storedClients;
 
     indexedClients = clients
       .map(client => ({
@@ -109,6 +196,11 @@
   }
 
   function openClient(clientId) {
+    if (clientId === CURRENT_DRAFT_ID) {
+      activateView('formcontact');
+      return;
+    }
+
     const api = getApi();
     if (!api?.switchToClient) return;
 
@@ -118,8 +210,8 @@
 
   function buildResultCard(entry) {
     const client = entry.client;
-    const source = client['fc-origen'] || 'WhatsApp';
-    const stage = client.etapa || 'EN_PROCESO';
+    const source = getClientSource(client);
+    const stage = getClientStage(client);
     const stageLabel = getStageLabel(stage);
     const sourceText = normalizeText(source);
     const sourceClass = sourceText.includes('facebook')
@@ -127,11 +219,14 @@
       : sourceText.includes('mercately')
         ? 'source-mercately'
         : 'source-whatsapp';
+    const updatedLabel = client._searchDraft
+      ? 'Borrador actual'
+      : `Actualizado: ${formatDate(client.savedAt)}`;
 
     return `
       <div class="search-card">
         <div class="search-card-top">
-          <div class="search-card-title">${escapeHtml(client.displayName || 'Cliente sin nombre')}</div>
+          <div class="search-card-title">${escapeHtml(getClientDisplayName(client))}</div>
           <div class="search-card-badges">
             <span class="search-card-badge ${sourceClass}">${escapeHtml(source)}</span>
             <span class="search-card-badge stage">${escapeHtml(stageLabel)}</span>
@@ -140,24 +235,24 @@
         <div class="search-card-grid">
           <div class="search-card-item">
             <div class="search-card-label">Cedula</div>
-            <div class="search-card-value">${escapeHtml(client['fc-cedula'] || '—')}</div>
+            <div class="search-card-value">${escapeHtml(getClientValue(client, 'cedula') || '—')}</div>
           </div>
           <div class="search-card-item">
             <div class="search-card-label">Celular</div>
-            <div class="search-card-value">${escapeHtml(client['fc-celular'] || '—')}</div>
+            <div class="search-card-value">${escapeHtml(getClientValue(client, 'celular') || '—')}</div>
           </div>
           <div class="search-card-item">
             <div class="search-card-label">Empresa</div>
-            <div class="search-card-value">${escapeHtml(client['fc-empresa'] || '—')}</div>
+            <div class="search-card-value">${escapeHtml(getClientValue(client, 'empresa') || '—')}</div>
           </div>
           <div class="search-card-item">
             <div class="search-card-label">Ciudad</div>
-            <div class="search-card-value">${escapeHtml(client['fc-ciudad-p'] || client['fc-ciudad-l'] || '—')}</div>
+            <div class="search-card-value">${escapeHtml(getClientValue(client, 'ciudad-p') || getClientValue(client, 'ciudad-l') || '—')}</div>
           </div>
         </div>
         <div class="search-card-footer">
-          <span class="search-card-date">Actualizado: ${escapeHtml(formatDate(client.savedAt))}</span>
-          <button class="btn btn-secondary btn-sm search-open-btn" type="button" data-id="${escapeHtml(client.id)}">Abrir</button>
+          <span class="search-card-date">${escapeHtml(updatedLabel)}</span>
+          <button class="btn btn-secondary btn-sm search-open-btn" type="button" data-id="${escapeHtml(getClientId(client) || CURRENT_DRAFT_ID)}">${client._searchDraft ? 'Volver' : 'Abrir'}</button>
         </div>
       </div>
     `;
@@ -171,8 +266,8 @@
 
     const results = indexedClients.filter(entry => {
       const client = entry.client;
-      const clientSource = client['fc-origen'] || 'WhatsApp';
-      const clientStage = client.etapa || 'EN_PROCESO';
+      const clientSource = getClientSource(client);
+      const clientStage = getClientStage(client);
 
       if (selectedSource !== 'ALL' && normalizeText(clientSource) !== normalizeText(selectedSource)) return false;
       if (selectedStage !== 'ALL' && clientStage !== selectedStage) return false;

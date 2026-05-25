@@ -581,17 +581,90 @@ function initUrlGenerator() {
 function initEntityTooltips() {
   const tooltip = document.getElementById('entityTooltip');
   if (!tooltip) return;
-  document.querySelectorAll('.entity-info-btn').forEach(btn => {
-    btn.addEventListener('mouseenter', () => {
-      tooltip.textContent = btn.dataset.info || '';
-      tooltip.style.display = 'block';
-      const rect  = btn.getBoundingClientRect();
-      const cRect = btn.closest('.entities-grid')?.getBoundingClientRect();
-      tooltip.style.top  = (rect.bottom - (cRect?.top  || 0) + 4) + 'px';
-      tooltip.style.left = (rect.left   - (cRect?.left || 0)) + 'px';
+  const buttons = [...document.querySelectorAll('.entity-info-btn')];
+  if (!buttons.length) return;
+
+  let activeBtn = null;
+
+  function hideTooltip() {
+    activeBtn = null;
+    tooltip.style.display = 'none';
+    tooltip.classList.remove('is-visible');
+    tooltip.removeAttribute('data-placement');
+  }
+
+  function positionTooltip(btn) {
+    if (!btn) return;
+
+    tooltip.style.display = 'block';
+    tooltip.classList.add('is-visible');
+    tooltip.style.visibility = 'hidden';
+
+    const rect = btn.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const gap = 12;
+    const viewportPadding = 12;
+    const maxLeft = Math.max(viewportPadding, window.innerWidth - tooltipRect.width - viewportPadding);
+    const left = Math.min(
+      Math.max(rect.left + (rect.width / 2) - (tooltipRect.width / 2), viewportPadding),
+      maxLeft
+    );
+
+    let top = rect.top - tooltipRect.height - gap;
+    let placement = 'top';
+    if (top < viewportPadding) {
+      top = Math.min(rect.bottom + gap, window.innerHeight - tooltipRect.height - viewportPadding);
+      placement = 'bottom';
+    }
+
+    const arrowLeft = Math.min(
+      Math.max((rect.left + (rect.width / 2)) - left, 16),
+      Math.max(16, tooltipRect.width - 16)
+    );
+
+    tooltip.dataset.placement = placement;
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+    tooltip.style.setProperty('--tooltip-arrow-left', `${arrowLeft}px`);
+    tooltip.style.visibility = 'visible';
+  }
+
+  function showTooltip(btn) {
+    activeBtn = btn;
+    tooltip.textContent = btn.dataset.info || '';
+    positionTooltip(btn);
+  }
+
+  buttons.forEach(btn => {
+    btn.addEventListener('pointerenter', () => showTooltip(btn));
+    btn.addEventListener('pointermove', () => {
+      if (activeBtn === btn) positionTooltip(btn);
     });
-    btn.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    btn.addEventListener('pointerleave', () => {
+      if (activeBtn === btn) hideTooltip();
+    });
+    btn.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (activeBtn === btn) {
+        hideTooltip();
+        return;
+      }
+      showTooltip(btn);
+    });
   });
+
+  document.addEventListener('click', event => {
+    if (!event.target.closest('.entity-info-btn')) hideTooltip();
+  });
+
+  window.addEventListener('resize', () => {
+    if (activeBtn) positionTooltip(activeBtn);
+  });
+
+  window.addEventListener('scroll', () => {
+    if (activeBtn) positionTooltip(activeBtn);
+  }, true);
 }
 
 /* ============================================================
@@ -691,6 +764,15 @@ window.addEventListener('beforeunload', e => {
    Q. EVENTOS FORMULARIO
    ============================================================ */
 (function initFormContact() {
+  const form = document.getElementById('creditForm');
+
+  form?.addEventListener('submit', event => {
+    event.preventDefault();
+    saveCurrentClient();
+    const panel = document.getElementById('clientListPanel');
+    if (panel?.style.display !== 'none') buildKanban();
+  });
+
   FC_FIELD_IDS.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;

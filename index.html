@@ -210,7 +210,7 @@
             <input type="checkbox" id="ent-solucion" name="entidad" value="SOLUCION">
             <span class="entity-check-box"></span>
             <span class="entity-check-name">SOLUCIÓN</span>
-            <span class="entity-info-btn" data-info="No califican militares ni policía. Documentos: Boletas de IPS con cédula en un mismo PDF.">ℹ</span>
+            <span class="entity-info-btn" data-info="No califican militares ni policía. Solo zona Central, incluyendo Carsa, hasta 44 km de San Lorenzo. Documentos: Boletas de IPS con cédula en un mismo PDF.">ℹ</span>
           </label>
           <label class="entity-check">
             <input type="checkbox" id="ent-tufi" name="entidad" value="TU_FINANCIERA">
@@ -235,6 +235,12 @@
             <span class="entity-check-box"></span>
             <span class="entity-check-name">CARSA</span>
             <span class="entity-info-btn" data-info="Consultar en sistema. Si aparece como nuevo, consultar en grupo. Contratados: 2 años de antigüedad mínima.">ℹ</span>
+          </label>
+          <label class="entity-check">
+            <input type="checkbox" id="ent-market" name="entidad" value="MARKET">
+            <span class="entity-check-box"></span>
+            <span class="entity-check-name">MARKET</span>
+            <span class="entity-info-btn" data-info="Puede de 17 años, con buena calificación financiera.">ℹ</span>
           </label>
         </div>
         <div class="entity-tooltip" id="entityTooltip" style="display:none"></div>
@@ -332,20 +338,20 @@
 
     <!-- BOTONES AL FONDO -->
     <div class="form-footer">
-      <button class="btn btn-ghost" id="fc-clear">
+      <button class="btn btn-ghost" id="fc-clear" type="button">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
         Limpiar
       </button>
       <div class="form-footer-right">
-        <button class="btn btn-secondary" id="fc-save-client">
+        <button class="btn btn-secondary" id="fc-save-client" type="button">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           Guardar
         </button>
-        <button class="btn btn-secondary" id="fc-copy">
+        <button class="btn btn-secondary" id="fc-copy" type="button">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
           Copiar
         </button>
-        <button class="btn btn-primary" id="fc-download">
+        <button class="btn btn-primary" id="fc-download" type="button">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Descargar .txt
         </button>

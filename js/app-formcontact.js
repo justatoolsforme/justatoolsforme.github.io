@@ -316,6 +316,13 @@ function fcGenerateTextForClient(client) {
   ].join('\n');
 }
 
+/****/
+const input = document.getElementById('fc-salario');
+
+input?.addEventListener('input', () => {
+    input.value = input.value.replace(/[.\s]/g, '');
+});
+
 /* ============================================================
    I. DESCARGAR TXT
    ============================================================ */

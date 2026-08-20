@@ -545,7 +545,7 @@ function generateIpsUrl(silent) {
   const openBtn = document.getElementById('fc-openurl');
   const copyBtn = document.getElementById('fc-copyurl');
   if (!cecot || !ide) { if (!silent) showToast('⚠ Completá CECOT e ID Empleador'); return; }
-  const url = `https://servicios.ips.gov.py/miips/inf_tarjetita_pdf.php?ide_emplea=${encodeURIComponent(ide)}&cod_period=999,998,997,996&ide_asecot=${encodeURIComponent(cecot)}&order=`;
+  const url = `https://servicios.ips.gov.py/miips/inf_tarjetita_pdf.php?ide_emplea=${encodeURIComponent(ide)}&cod_period=1002,1001,1000&ide_asecot=${encodeURIComponent(cecot)}&order=`;
   if (urlOut)  urlOut.value = url;
   if (openBtn) { openBtn.href = url; openBtn.style.display = 'inline-flex'; }
   if (copyBtn) copyBtn.style.display = 'inline-flex';

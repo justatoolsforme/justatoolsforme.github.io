@@ -100,8 +100,9 @@ function showToast(msg, duration = 2800) {
   const btn = document.getElementById('clearAllBtn');
   if (!btn) return;
 
-  btn.addEventListener('click', () => {
-    if (!confirm('¿Limpiar TODOS los datos guardados?\nEsto borrará el formulario y las preferencias.')) return;
+  btn.addEventListener('click', async () => {
+    const ok = await (window.Swal ? window.Swal.confirm('¿Limpiar TODOS los datos guardados?\nEsto borrará el formulario y las preferencias.') : Promise.resolve(confirm('¿Limpiar TODOS los datos guardados?\nEsto borrará el formulario y las preferencias.')));
+    if (!ok) return;
 
     Object.keys(localStorage)
       .filter(k => k.startsWith('tufi_'))

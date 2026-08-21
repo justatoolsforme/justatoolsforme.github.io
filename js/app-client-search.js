@@ -139,6 +139,7 @@
       apellidos: normalizeText(getClientValue(client, 'apellidos')),
       cedula: normalizeText(getClientValue(client, 'cedula')),
       celular: normalizeText(getClientValue(client, 'celular')),
+      salario: normalizeText(getClientValue(client, 'salario')),
       empresa: normalizeText(getClientValue(client, 'empresa')),
       origen: normalizeText(getClientSource(client)),
       ciudad: normalizeText([getClientValue(client, 'ciudad-p'), getClientValue(client, 'ciudad-l')].join(' ')),
@@ -153,6 +154,18 @@
       entidades: normalizeText(getClientEntities(client).join(' ')),
       ips: normalizeText([getClientValue(client, 'cecot'), getClientValue(client, 'idempleador')].join(' '))
     };
+  }
+
+  // Determine whether remote server actions should be visible:
+  function isRemoteActive() {
+    try {
+      const cfg = (window.RemoteSync && window.RemoteSync.loadConfig) ? window.RemoteSync.loadConfig() : JSON.parse(localStorage.getItem('tufi_remote_config_v1') || '{}');
+      if (!cfg || !cfg.enabled) return false;
+      if (!cfg.pingpong) return false;
+      const last = Number(cfg._lastPing || 0);
+      if (!last) return false;
+      return (Date.now() - last) <= (3 * 60 * 1000); // 3 minutes
+    } catch (e) { return false; }
   }
 
   function indexClients() {
@@ -223,6 +236,8 @@
       ? 'Borrador actual'
       : `Actualizado: ${formatDate(client.savedAt)}`;
 
+    const showActions = isRemoteActive();
+
     return `
       <div class="search-card">
         <div class="search-card-top">
@@ -246,13 +261,22 @@
             <div class="search-card-value">${escapeHtml(getClientValue(client, 'empresa') || '—')}</div>
           </div>
           <div class="search-card-item">
+            <div class="search-card-label">Salario</div>
+            <div class="search-card-value">${escapeHtml(getClientValue(client, 'salario') || '—')}</div>
+          </div>
+          <div class="search-card-item">
             <div class="search-card-label">Ciudad</div>
             <div class="search-card-value">${escapeHtml(getClientValue(client, 'ciudad-p') || getClientValue(client, 'ciudad-l') || '—')}</div>
           </div>
         </div>
         <div class="search-card-footer">
           <span class="search-card-date">${escapeHtml(updatedLabel)}</span>
-          <button class="btn btn-secondary btn-sm search-open-btn" type="button" data-id="${escapeHtml(getClientId(client) || CURRENT_DRAFT_ID)}">${client._searchDraft ? 'Volver' : 'Abrir'}</button>
+          <div class="search-card-actions">
+            <button class="btn btn-secondary btn-sm search-open-btn" type="button" data-id="${escapeHtml(getClientId(client) || CURRENT_DRAFT_ID)}">${client._searchDraft ? 'Volver' : 'Abrir'}</button>
+            <button class="btn btn-danger btn-sm search-delete-local-btn" type="button" data-id="${escapeHtml(getClientId(client) || '')}">Eliminar</button>
+            ${showActions ? (`<button class="btn btn-danger btn-sm search-soft-delete-btn" type="button" data-id="${escapeHtml(getClientId(client) || '')}">Marcar Eliminado (Server)</button>`) : ''}
+            ${showActions ? (`<button class="btn btn-warning btn-sm search-admin-delete-btn" type="button" data-id="${escapeHtml(getClientId(client) || '')}">Eliminar en servidor (Admin)</button>`) : ''}
+          </div>
         </div>
       </div>
     `;
@@ -272,6 +296,23 @@
       if (selectedSource !== 'ALL' && normalizeText(clientSource) !== normalizeText(selectedSource)) return false;
       if (selectedStage !== 'ALL' && clientStage !== selectedStage) return false;
       if (!query) return true;
+
+      // Special numeric comparison for salary: if searching in 'salario' and query is numeric,
+      // return clients whose salary numeric value is >= query number.
+      if (selectedField === 'salario') {
+        const qDigits = query.replace(/[^0-9]/g, '');
+        if (qDigits) {
+          const qNum = parseInt(qDigits, 10);
+          const salRaw = String(getClientValue(client, 'salario') || '');
+          const sDigits = salRaw.replace(/[^0-9]/g, '');
+          const sNum = sDigits ? parseInt(sDigits, 10) : NaN;
+          if (!Number.isNaN(sNum)) return sNum >= qNum;
+          return false;
+        }
+        // fallback to text match when query is not numeric
+        const haystack = entry.fields['salario'] || '';
+        return haystack.includes(query);
+      }
 
       const haystack = selectedField === 'all'
         ? entry.fields.all
@@ -293,9 +334,57 @@
     }
 
     resultsEl.innerHTML = results.map(buildResultCard).join('');
-
     resultsEl.querySelectorAll('.search-open-btn').forEach(button => {
       button.addEventListener('click', () => openClient(button.dataset.id));
+    });
+
+    // Local delete (remove saved client from localStorage) — ask confirmation
+    resultsEl.querySelectorAll('.search-delete-local-btn').forEach(button => {
+      button.addEventListener('click', () => {
+        const id = String(button.dataset.id || '');
+        if (!id) { showToast('⚠ Cliente no encontrado'); return; }
+        if (id === CURRENT_DRAFT_ID) { showToast('⚠ No se puede eliminar el borrador actual'); return; }
+        if (!confirm('¿Estás seguro que deseas eliminar este cliente localmente?')) return;
+        try {
+          const arr = JSON.parse(localStorage.getItem(CLIENTS_STORAGE_KEY) || '[]');
+          const idx = arr.findIndex(c => String(c.id) === id || String(c.clientId || '') === id);
+          if (idx === -1) { showToast('⚠ Cliente no encontrado'); return; }
+          arr.splice(idx, 1);
+          localStorage.setItem(CLIENTS_STORAGE_KEY, JSON.stringify(arr));
+          window.dispatchEvent(new Event('tufi:clients-changed'));
+          showToast('✓ Cliente eliminado localmente');
+        } catch (e) { showToast('⚠ Error al eliminar'); }
+      });
+    });
+
+    // Soft-delete (mark as deleted on server but keep locally) — ask confirmation
+    resultsEl.querySelectorAll('.search-soft-delete-btn').forEach(button => {
+      button.addEventListener('click', async () => {
+        if (!confirm('¿Estás seguro que deseas marcar este cliente como eliminado en el servidor?')) return;
+        const id = button.dataset.id;
+        const client = indexedClients.find(e => (String(e.client.id) === id)).client;
+        if (!client) { showToast('⚠ Cliente no encontrado'); return; }
+        if (!window.RemoteSync) { showToast('⚠ RemoteSync no disponible'); return; }
+        const ok = await window.RemoteSync.softDelete(client);
+        if (ok) showToast('✓ Cliente marcado como eliminado en servidor');
+        else showToast('⚠ No se pudo marcar eliminado en servidor');
+      });
+    });
+
+    // Admin-delete (permanent) - requires admin token
+    resultsEl.querySelectorAll('.search-admin-delete-btn').forEach(button => {
+      button.addEventListener('click', async () => {
+        if (!confirm('¿Estás seguro que deseas eliminar este cliente en el servidor? Esta acción es irreversible.')) return;
+        const id = button.dataset.id;
+        const client = indexedClients.find(e => (String(e.client.id) === id)).client;
+        if (!client) { showToast('⚠ Cliente no encontrado'); return; }
+        if (!window.RemoteSync) { showToast('⚠ RemoteSync no disponible'); return; }
+        const isAdmin = await (window.RemoteSync.testAdmin ? window.RemoteSync.testAdmin() : Promise.resolve(false));
+        if (!isAdmin) { showToast('⚠ Token no tiene permisos de administrador'); return; }
+        const ok = await window.RemoteSync.adminDelete(client);
+        if (ok) showToast('✓ Cliente eliminado en servidor (admin)');
+        else showToast('⚠ No se pudo eliminar en servidor');
+      });
     });
   }
 

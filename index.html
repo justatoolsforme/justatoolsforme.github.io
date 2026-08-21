@@ -49,6 +49,10 @@
           <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h8M8 14h8M8 18h8"/></svg></span>
           <span class="nav-text">Calculadora</span>
         </button>
+        <button class="nav-btn" data-view="sync" data-tooltip="Sync" id="sync_button" style="display:none">
+          <span class="nav-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12v-2a9 9 0 10-3 6.7"/><path d="M3 6v6h6"/></svg></span>
+          <span class="nav-text">Sync</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -396,6 +400,7 @@
           <option value="cedula">Cedula</option>
           <option value="celular">Celular</option>
           <option value="empresa">Empresa</option>
+          <option value="salario">Salario</option>
           <option value="origen">Origen</option>
           <option value="ciudad">Ciudad</option>
           <option value="direccion">Direccion</option>
@@ -483,6 +488,56 @@
             <button class="btn-link" id="addMoreBtn">+ Agregar más</button>
           </div>
           <div class="preview-grid" id="previewGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW: SYNC -->
+    <section class="view" id="view-sync">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">Sync</h1>
+          <p class="view-subtitle">Configuración de sincronización remota y herramientas</p>
+        </div>
+      </div>
+
+      <div style="padding:8px 0 18px 0">
+        <div class="sync-container" id="remoteSyncPanel" style="display:none;margin-top:6px;">
+          <div class="sync-panel" style="display:flex;gap:12px;align-items:flex-start">
+            <div style="flex:1">
+              <h3 style="margin:0 0 8px 0">Remote Sync — Configuración</h3>
+              <div style="font-size:13px;color:#444;margin-bottom:8px">Acceso oculto: pulsá 7 veces 'Calculadora' (click izquierdo)</div>
+              <div style="display:flex;gap:8px;margin-bottom:8px">
+                <input id="rs-host" type="text" placeholder="Host o IP" style="flex:1;padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input id="rs-port" type="text" placeholder="Puerto" style="width:80px;padding:8px;border:1px solid #ccc;border-radius:4px">
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                <label style="display:flex;gap:6px;align-items:center"><input id="rs-https" type="checkbox"> HTTPS</label>
+                <label style="display:flex;gap:6px;align-items:center"><input id="rs-pingpong" type="checkbox"> PingPong activo</label>
+                <label style="display:flex;gap:6px;align-items:center;margin-left:auto"><input id="rs-enabled" type="checkbox"> Enabled</label>
+              </div>
+              <div style="margin-bottom:8px">
+                <input id="rs-token" type="text" placeholder="Token" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px">
+              </div>
+            </div>
+            <div style="width:360px">
+              <div class="grid-endpoints" style="margin-bottom:8px">
+                <input id="rs-endpoint-ping" type="text" placeholder="GET /ping" style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input id="rs-endpoint-list" type="text" placeholder="GET /clients" style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input id="rs-endpoint-save" type="text" placeholder="POST /save" style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input id="rs-endpoint-saveall" type="text" placeholder="POST /save-all" style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input id="rs-endpoint-softdelete" type="text" placeholder="POST /delete" style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input id="rs-endpoint-admindelete" type="text" placeholder="POST /admin-delete" style="padding:8px;border:1px solid #ccc;border-radius:4px">
+              </div>
+              <div class="actions-row">
+                <button id="rs-test-ping" class="btn">Probar Ping</button>
+                <button id="rs-save-config" class="btn btn-secondary">Guardar</button>
+                <button id="rs-sync" class="btn btn-primary">Sincronizar (SaveAll)</button>
+                <button id="rs-load" class="btn">Cargar desde servidor</button>
+                <button id="rs-close" class="btn btn-ghost">Cerrar</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -1148,12 +1203,14 @@
 <div class="toast" id="toast"></div>
 
 <!-- CDN externos -->
+ 
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
 
 <!-- Módulos TUFI -->
+<script src="js/sweet-alert.js"></script>
 <script src="js/app-core.js"></script>
 <script src="js/app-geo.js"></script>
 <script src="js/app-formcontact.js"></script>
@@ -1163,5 +1220,6 @@
 <script src="js/app-pdf.js"></script>
 <script src="js/app-calculadora-promedios.js"></script>
 <script src="js/app-calculadora.js"></script>
+<script src="js/app-remote-sync.js"></script>
 </body>
 </html>

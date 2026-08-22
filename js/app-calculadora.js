@@ -2,6 +2,19 @@
 
 document.addEventListener('DOMContentLoaded', function() {
   
+  const calcSection = document.getElementById('view-calculadora');
+  const calcInputs = calcSection ? calcSection.querySelectorAll('input[type="number"]') : [];
+
+  calcInputs.forEach(input => {
+    input.addEventListener('input', function() {
+      input.value = sanitizeIntegerInput(input.value);
+    });
+
+    input.addEventListener('change', function() {
+      input.value = sanitizeIntegerInput(input.value);
+    });
+  });
+
   // ========== BOTÓN LIMPIAR TODO ==========
   const btnCleanAll = document.getElementById('calc-clean-all');
   btnCleanAll.addEventListener('click', function() {
@@ -294,6 +307,11 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
       toast.classList.remove('show');
     }, 3000);
+  }
+
+  function sanitizeIntegerInput(value) {
+    if (value === null || value === undefined) return '';
+    return String(value).replace(/\D+/g, '');
   }
 
 });

@@ -418,7 +418,6 @@ cedEl?.addEventListener('blur', () => {
     fc_activeClientId = found.id;
     uiSetActiveClient(found.id, found.displayName);
     cedEl.classList.add('fc-dup-error');
-    cedEl.value = '';
     cedEl.blur();
     showToast('⚠ Cédula ya existe — cargando datos guardados');
   }

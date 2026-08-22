@@ -946,7 +946,7 @@
         </div>
 
         <!-- ── GRUPO: DESEMBOLSO ── -->
-        <div class="ref-group">
+        <!--<div class="ref-group">
           <div class="ref-group-title">Desembolso — Sistemas de Entidades</div>
           <div class="ref-list">
 
@@ -1071,119 +1071,154 @@
             </div>
 
           </div>
-        </div>
+        </div>-->
 
         <!-- ── GRUPO: PREGUNTAS FRECUENTES ── -->
         <div class="ref-group">
-          <div class="ref-group-title">Guía Operativa — Preguntas Frecuentes</div>
+          <div class="ref-group-title">Guía Operativa — Criterios por entidad</div>
           <div class="faq-list">
 
             <div class="faq-item">
               <button class="faq-trigger" data-faq="1">
                 <span class="faq-num">1</span>
-                <span class="faq-q">¿Cómo quitarle la cédula a un cliente? 🤔</span>
+                <span class="faq-q">TUFI</span>
                 <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </button>
               <div class="faq-body" id="faq-1" style="display:none">
-                <div class="faq-step"><span class="step-tag">Paso 1</span> Mensaje de apertura → Cliente responde</div>
-                <div class="faq-step"><span class="step-tag">Paso 2</span> Requisitos → Cliente responde</div>
-                <div class="faq-step"><span class="step-tag">Paso 3</span> Cédula → Cliente responde <em>(filtrar)</em></div>
+                <p class="faq-intro">Criterios generales</p>
+                <div class="faq-step"><span class="step-tag req">CÉDULA</span> Con cédula se verifica disponibilidad. No pueden clientes con cuenta vigente que no sea código 301 Mango, con cartera vendida, con faja N, X, ni con INC en Mango.</div>
+                <div class="faq-step"><span class="step-tag req">IPS</span> Pueden clientes con 0 aportes pero IPS activo hasta 3 meses. Pueden contratados con certificado laboral.</div>
+                <div class="faq-step"><span class="step-tag req">SALARIO</span> TUFI es el único que acepta clientes menores a salario mínimo con IPS, únicamente se les declara como salario mínimo. No aplica a contratados.</div>
+                <div class="faq-step"><span class="step-tag req">EDAD</span> Pueden hasta 19 años con 6 meses. Pueden salario menor al mínimo con IPS.</div>
+                <div class="faq-step"><span class="step-tag req">FUNCIONARIOS</span> No pueden funcionarios con salario menor al mínimo. Si no se registra CRC hasta 1,5 millones; si tiene faja M con salario mínimo o mayor hasta 1,5 millones.</div>
+                <div class="faq-step"><span class="step-tag req">POLICÍA / MILITAR</span> Si el funcionario es policía o militar, y la antigüedad es 4 meses en el nuevo rango, se le rechaza por antigüedad.</div>
+                <div class="faq-step"><span class="step-tag req">MEC</span> Clientes del MEC hasta 10 millones máximo, deben pasar sí o sí por sucursal, y no hay desembolsos digitales para ellos.</div>
+                <div class="faq-step"><span class="step-tag req">MENOR</span> Si la cédula indica MENOR, se debe adjuntar certificado de vacunación COVID o registro de conducir.</div>
+                <div class="faq-step"><span class="step-tag req">PROFESIONALES</span> Para profesionales independientes se puede adjuntar únicamente título con código 302 hasta 3 meses.</div>
+                <div class="faq-step"><span class="step-tag req">IVA</span> Para asalariados con IVA se puede hasta 3 últimos meses; con facturas 3 meses; a veces piden 6 últimas facturas.</div>
               </div>
             </div>
 
             <div class="faq-item">
               <button class="faq-trigger" data-faq="2">
                 <span class="faq-num">2</span>
-                <span class="faq-q">Paso 1 — Ver que cuente con los requisitos</span>
+                <span class="faq-q">Solar</span>
                 <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </button>
               <div class="faq-body" id="faq-2" style="display:none">
-                <p class="faq-intro">¿Cuáles son los requisitos para acceder a un crédito?</p>
-                <div class="faq-step"><span class="step-tag req">IPS</span> Contar con IPS (mínimo 6 aportes)</div>
-                <div class="faq-step"><span class="step-tag req">Público</span> Funcionarios públicos (nombrados y contratados)</div>
-                <div class="faq-step"><span class="step-tag req">Profesional</span> Profesionales independientes — abogados, contadores, doctores (título universitario obligatorio)</div>
-                <div class="faq-step"><span class="step-tag req">IVA</span> Asalariados con IVA — empleados de empresas privadas que emiten factura legal para el cobro de su salario/comisiones</div>
+                <p class="faq-intro">Califican todos a partir de 6 aportes.</p>
+                <div class="faq-step"><span class="step-tag req">GENERAL</span> Funcionarios públicos y contratados, y mayores de 20 años.</div>
+                <div class="faq-step"><span class="step-tag req">FAJA</span> No califican fajas mayores a M.</div>
+                <div class="faq-step"><span class="step-tag req">APORTES</span> Califican clientes con 3 aportes solo si hay continuidad laboral con otro trabajo de 3 aportes, se pasa con print detallado.</div>
+                <div class="faq-step"><span class="step-tag req">REPOSO</span> Para clientes con reposo, adjuntar 12 últimos aportes a IPS y certificado de reposo. La misma regla aplica para todas excepto Market, Serfin y Tufi.</div>
+                <div class="faq-step"><span class="step-tag req">PROFESIONALES / IVA</span> Para clientes profesionales independientes o asalariados con IVA, únicamente 6 últimos IVAS y 6 últimas facturas. (la factura debe mostrar misma razon social si es asalariado con iva)</div>
+                <div class="faq-step"><span class="step-tag req">DOCUMENTOS</span> Para todo lo demás, siempre adjuntar solicitud con autorizacion.</div>
+                <div class="faq-step"><span class="step-tag req">MAXI</span>Si el cliente pasa por maxicambios, se indica monto, plazo, ci y que pasa por maxicambios.</div>
+                <div class="faq-step"><span class="step-tag req">PAÍS</span> Califican todo el país, igual que Tu Financiera.</div>
               </div>
             </div>
 
             <div class="faq-item">
               <button class="faq-trigger" data-faq="3">
                 <span class="faq-num">3</span>
-                <span class="faq-q">Paso 2 — Encontrar en qué entidad cargar la solicitud</span>
+                <span class="faq-q">Solución</span>
                 <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </button>
               <div class="faq-body" id="faq-3" style="display:none">
-                <p class="faq-intro">¿Cuál es nuestro objetivo?</p>
-                <p class="faq-text">Encontrar <strong>dónde cargar la solicitud</strong> de nuestro cliente según su perfil y disponibilidad en cada entidad.</p>
+                <p class="faq-intro">Criterios de evaluación</p>
+                <div class="faq-step"><span class="step-tag req">GENERAL</span> Califican clientes con 6 aportes o más, mayores de 20 años, y funcionarios públicos/contratados con liquidaciones de salario.</div>
+                <div class="faq-step"><span class="step-tag req">FUNCIONARIOS</span> Aceptan funcionarios de 6 meses para permanentes y 1 año de antiguedad para contratados.</div>
+                <div class="faq-step"><span class="step-tag req">IPS</span>Salario promedio igual o mayor al minimo. Debe tener si o si 6 aportes.</div>
+                <div class="faq-step"><span class="step-tag req">DOCUMENTOS</span> Para funcionarios, adjuntar sí o sí liquidaciones de salario, sea contratado o permanente.</div>
+                <div class="faq-step"><span class="step-tag req">EXCLUSIÓN</span> No califican policías ni militares.</div>
+                <div class="faq-step"><span class="step-tag req">RADIO</span> Únicamente califican clientes de Central y Ciudad del Este; no califican clientes del interior si no son funcionarios.</div>
               </div>
             </div>
 
             <div class="faq-item">
               <button class="faq-trigger" data-faq="4">
                 <span class="faq-num">4</span>
-                <span class="faq-q">Empresas con las que trabajamos</span>
+                <span class="faq-q">Japonesa</span>
                 <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </button>
               <div class="faq-body" id="faq-4" style="display:none">
-                <div class="faq-entity-list">
-                  <div class="faq-entity"><span class="entity-name">Tu Financiera</span><span class="entity-note">Ver en sistema</span></div>
-                  <div class="faq-entity"><span class="entity-name">Fin. Paraguayo Japonesa</span><span class="entity-note">Ver en sistema</span></div>
-                  <div class="faq-entity"><span class="entity-name">Banco Solar</span><span class="entity-note">Consulta en Pago Móvil y luego en grupo de WhatsApp</span></div>
-                  <div class="faq-entity"><span class="entity-name">CrediSolución</span><span class="entity-note">Ver en AnyDesk</span></div>
-                  <div class="faq-entity"><span class="entity-name">Carsa</span><span class="entity-note">Consultar en sistema. Si aparece como nuevo, consultar en grupo</span></div>
-                </div>
-                <div class="faq-divider"></div>
-                <p class="faq-subtitle">Códigos Tu Financiera</p>
-                <div class="faq-codes">
-                  <div class="faq-code"><span class="code-num">311</span><span>Renovación</span></div>
-                  <div class="faq-code"><span class="code-num">210</span><span>Renovación</span></div>
-                  <div class="faq-code"><span class="code-num">211</span><span>Renovación</span></div>
-                  <div class="faq-code"><span class="code-num">201</span><span>Préstamo nuevo</span></div>
-                  <div class="faq-code"><span class="code-num">301</span><span>Mango (no es cliente)</span></div>
-                </div>
+                <p class="faq-intro">Perfil de aprobación</p>
+                <div class="faq-step"><span class="step-tag req">PAÍS</span> Califican todo el país, con el mismo esquema de revisión de clientes que Solución y solar.</div>
+                <div class="faq-step"><span class="step-tag req">EXCLUSIÓN</span> No califican clientes con faja m o crc negativo.</div>
+                <div class="faq-step"><span class="step-tag req">IPS</span>Salario promedio igual o mayor al minimo. Debe tener si o si 6 aportes, IMPORTANTE: Si se le declara salario minimo puede tener aprobacion automatica, pero si se le manda se le rechazara en caja, NO DECLARAR SALARIO MINIMO.</div>
+                <div class="faq-step"><span class="step-tag req">REQUISITOS</span> Revisan IPS, antigüedad laboral, y documentación según la categoría del cliente.</div>
+                <div class="faq-step"><span class="step-tag req">FUNCIONARIOS</span> Piden liquidaciones y comprobantes de ingresos cuando corresponde, según tipo de relación laboral.</div>
+                <div class="faq-step"><span class="step-tag req">CLIENTES</span> Se evalúa perfil, salario, estabilidad laboral y documentos de respaldo antes de pasar la solicitud.</div>
               </div>
             </div>
 
             <div class="faq-item">
               <button class="faq-trigger" data-faq="5">
                 <span class="faq-num">5</span>
-                <span class="faq-q">Tipos de seguro en IPS</span>
+                <span class="faq-q">Tking</span>
                 <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </button>
               <div class="faq-body" id="faq-5" style="display:none">
-                <div class="faq-type-list">
-                  <div class="faq-type-item"><div class="faq-type-name">Cotizante General</div><div class="faq-type-desc">Sueldo fijo.</div></div>
-                  <div class="faq-type-item"><div class="faq-type-name">Cotizante Jornalero</div><div class="faq-type-desc">Cobra por hora/días trabajados. Siempre pedir 3 últimos comprobantes (boletas y/o liquidaciones). Califica si gana más del mínimo.</div></div>
-                  <div class="faq-type-item"><div class="faq-type-name">Seguro Doméstico</div><div class="faq-type-desc">Empleados domésticos (ama de llaves, jardinero, chofer, etc.). Ver que gane más del mínimo.</div></div>
-                  <div class="faq-type-item"><div class="faq-type-name">Cotizante Zafrero</div><div class="faq-type-desc">Ver que aporte por más del sueldo mínimo.</div></div>
-                  <div class="faq-type-item"><div class="faq-type-name">Ganadería</div><div class="faq-type-desc">Empleados de estancias. Ver que aporte por más del sueldo mínimo.</div></div>
-                  <div class="faq-type-item"><div class="faq-type-name">Aprendices</div><div class="faq-type-desc">Cada empresa tiene políticas diferentes. Consultar al supervisor/compañero. Ver que aporte por más del mínimo.</div></div>
-                  <div class="faq-type-item"><div class="faq-type-name">Tiempo Parcial</div><div class="faq-type-desc">Trabajan medio día. Suelen aportar por menos del mínimo. Ver boletas.</div></div>
-                  <div class="faq-type-item"><div class="faq-type-name">Chofer de Ómnibus</div><div class="faq-type-desc">Choferes de colectivos de corta distancia (Línea 48, Línea 27, etc.).</div></div>
-                </div>
+                <p class="faq-intro">Perfil de aprobación</p>
+                <div class="faq-step"><span class="step-tag req">PAÍS</span> Califica para todo el país con estructura similar a Solución.</div>
+                <div class="faq-step"><span class="step-tag req">REQUISITOS</span> Evalúan cliente según IPS con 4 aportes, antigüedad y tipo de empleado.</div>
+                <div class="faq-step"><span class="step-tag req">IPS</span>Pueden clientes con 4 aportes</div>
+                <div class="faq-step"><span class="step-tag req">SALARIO</span>Pueden con salario menor al minimo hasta 1.7M, se le declara hasta 3M</div>
+                <div class="faq-step"><span class="step-tag req">AUMENTO</span>Se puede pedir aumento aunque el proceso puede demorar aveces lo dan</div>
+                <div class="faq-step"><span class="step-tag req">DELIVERY</span> Hacen delivery.</div>
+                <div class="faq-step"><span class="step-tag req">FUNCIONARIOS</span>Se requiere liquidacion de salarios</div>
+                <div class="faq-step"><span class="step-tag req">EXCLUSIÓN</span> Salario menor a 1.7M no califican, aveces aceptan clientes con faja m y n, o crc negativo, validar.</div>
+                <div class="faq-step"><span class="step-tag req">IMPORTANTE</span>No validar en vano, si al cliente se le aprueba, se debe pasar si o si solicitud, es mejor primero probar si puede en market si el cliente es de central.</div>
+                
               </div>
             </div>
 
             <div class="faq-item">
               <button class="faq-trigger" data-faq="6">
                 <span class="faq-num">6</span>
-                <span class="faq-q">Tipos de Funcionarios Públicos</span>
+                <span class="faq-q">Serfin</span>
                 <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
               </button>
               <div class="faq-body" id="faq-6" style="display:none">
-                <div class="faq-type-list">
-                  <div class="faq-type-item faq-type-item--highlight"><div class="faq-type-name">Nombrados</div><div class="faq-type-desc">Califican en todos los lados.</div></div>
-                  <div class="faq-type-item"><div class="faq-type-name">Contratados — Política especial por empresa</div><div class="faq-type-desc">Cada entidad tiene requisitos de antigüedad distintos.</div></div>
-                </div>
-                <div class="faq-divider"></div>
-                <p class="faq-subtitle">Antigüedad requerida para contratados</p>
-                <div class="faq-antigüedad-list">
-                  <div class="faq-antig-item"><span class="antig-entity">Carsa</span><span class="antig-req">2 años de antigüedad</span></div>
-                  <div class="faq-antig-item"><span class="antig-entity">CrediSolución</span><span class="antig-req">1 año de antigüedad</span></div>
-                  <div class="faq-antig-item"><span class="antig-entity">Banco Solar</span><span class="antig-req">3 años de antigüedad</span></div>
-                  <div class="faq-antig-item"><span class="antig-entity">TuFi</span><span class="antig-req">Califica presentando contrato</span></div>
-                  <div class="faq-antig-item"><span class="antig-entity">Japonesa</span><span class="antig-req">8 meses de antigüedad</span></div>
-                </div>
+                <p class="faq-intro">Perfil de aprobación</p>
+                <div class="faq-step"><span class="step-tag req">RADIO</span> Califica solo Central.</div>
+                <div class="faq-step"><span class="step-tag req">APORTES</span> No acepta aportes a IPS, pero se requiere que el cliente lo tenga. Únicamente 3 últimas liquidaciones; a veces piden últimos aportes a IPS.</div>
+                <div class="faq-step"><span class="step-tag req">DOCUMENTOS</span> Se debe adjuntar sí o sí 3 últimas liquidaciones y factura o vida y residencia al nombre del cliente con su dirección personal.</div>
+                <div class="faq-step"><span class="step-tag req">VERIFICACIÓN</span> Hacen llamadas y revisan la información del cliente en forma telefónica antes de aprobar.</div>
+                <div class="faq-step"><span class="step-tag req">ENFOQUE</span> Piden que la documentación esté completa y con datos coherentes para evitar rechazo inmediato.</div>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <button class="faq-trigger" data-faq="7">
+                <span class="faq-num">7</span>
+                <span class="faq-q">Credimarket</span>
+                <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="faq-body" id="faq-7" style="display:none">
+                <p class="faq-intro">Perfil de aprobación</p>
+                <div class="faq-step"><span class="step-tag req">PAÍS</span>Pueden solo de central.</div>
+                <div class="faq-step"><span class="step-tag req">DOCUMENTACIÓN</span> Puedes pasar únicamente la solicitud sin documentación adicional.</div>
+                <div class="faq-step"><span class="step-tag req">PROCESO</span> Similar a TKING, si el cliente gana bien, prioriza hasta 7M, no validar por 10M, sino por 7M.</div>
+              </div>
+            </div>
+
+            <div class="faq-item">
+              <button class="faq-trigger" data-faq="8">
+                <span class="faq-num">8</span>
+                <span class="faq-q">Financorp</span>
+                <svg class="faq-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="faq-body" id="faq-8" style="display:none">
+                <p class="faq-intro">Target de clientes</p>
+                <div class="faq-step"><span class="step-tag req">TARGET</span> Hasta faja K. Salario 5.000.000, no carguen clientes con ingreso menor. Radio de acción Central. Edad mínima 22 años.</div>
+                <div class="faq-step"><span class="step-tag req">REQUISITOS</span> IPS - 6 aportes; funcionarios públicos nombrados - 6 meses de antigüedad; funcionarios públicos contratados - 2 años de antigüedad; jubilados - 2 meses de antigüedad; profesionales independientes - 12 meses; asalariado con IVA - 6 meses.</div>
+                <div class="faq-step"><span class="step-tag req">DOCUMENTACIÓN</span> Cédula y comprobante de ingresos (6 últimas boletas de IPS y/o liquidación).</div>
+                <div class="faq-step"><span class="step-tag req">TRABAJO</span> Envían la solicitud al grupo y le avisan al cliente que le van a contactar desde Financorp para enviar autorización.</div>
+                <div class="faq-step"><span class="step-tag req">DELIVERY</span> Hacen delivery.</div>
+                <div class="faq-step"><span class="step-tag req">DESEMBOLSO</span> Pasa por sucursal o se la manda por delivery (delivery con costo según zona).</div>
+                <div class="faq-step"><span class="step-tag req">IMPORTANTE</span> No consulten si es cliente o no; envíen directo sus solicitudes y avisenle al cliente que se le va a contactar.</div>
+                <div class="faq-step"><span class="step-tag req">EXCLUSIÓN</span> Policias, abogados y militares no entran.</div>
               </div>
             </div>
 

@@ -1572,13 +1572,35 @@ a.ref-card:hover .ref-arrow { color: var(--accent); }
   border-radius: 8px;
   cursor: pointer;
   background: var(--surface);
-  transition: border-color .16s, background .16s;
+  transition: border-color .16s, background .16s, opacity .16s, filter .16s;
   user-select: none;
 }
 .entity-check:hover { border-color: var(--accent); }
 .entity-check:has(input:checked) {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.entity-check.entity-disabled {
+  opacity: .5;
+  filter: grayscale(.15);
+  background: #f1f1f1;
+  border-color: #cfcfcf;
+  cursor: not-allowed;
+}
+.entity-check.entity-disabled .entity-check-name {
+  color: #666;
+}
+.entity-check.entity-disabled .entity-check-box {
+  border-color: #b9b9b9;
+  background: #e7e7e7;
+}
+.entity-check.entity-disabled .entity-check-box::after {
+  content: '';
+  display: block;
+  width: 11px; height: 11px;
+  position: relative;
+  background: linear-gradient(to bottom right, transparent calc(50% - 1px), #7a7a7a 50%, transparent calc(50% + 1px));
+  transform: rotate(45deg);
 }
  
 .entity-check input[type="checkbox"] { display: none; }

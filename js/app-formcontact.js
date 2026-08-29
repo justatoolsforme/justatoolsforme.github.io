@@ -47,10 +47,10 @@ function randomId() {
   return 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
 }
 
-// IPS config key
+
 const FC_IPS_CONFIG = 'tufi_ips_config_v1';
 
-// Small helper to parse dd/mm/yyyy into Date (returns null if invalid)
+
 function parseDateDMY(str) {
   if (!str) return null;
   const parts = str.split('/').map(s => s.trim());
@@ -59,10 +59,10 @@ function parseDateDMY(str) {
   const m = parseInt(parts[1], 10) - 1;
   const y = parseInt(parts[2], 10);
   if (Number.isNaN(d) || Number.isNaN(m) || Number.isNaN(y)) return null;
-  // Validate reasonable month/day ranges
+  
   if (m < 0 || m > 11) return null;
   if (d < 1 || d > 31) return null;
-  // validate day against month length
+  
   const mdays = new Date(y, m + 1, 0).getDate();
   if (d > mdays) return null;
   return new Date(y, m, d);
@@ -76,6 +76,84 @@ function fcHasMeaningfulData(data = formRead()) {
   });
 
   return hasTextData || (Array.isArray(data._entidades) && data._entidades.length > 0);
+}
+
+function normalizeStructuredNameWhitespace(value) {
+  return String(value ?? '').replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function formatStructuredBirthDate(value) {
+  const raw = normalizeStructuredNameWhitespace(value);
+  if (!raw) return '';
+  const match = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (!match) return raw;
+  const [, day, month, year] = match;
+  return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+}
+
+function parseStructuredFcNameInput(rawValue) {
+  const source = normalizeStructuredNameWhitespace(rawValue);
+  if (!source) return null;
+
+  const tokens = source.split(/\s+/).filter(Boolean);
+  if (tokens.length < 7) return null;
+
+  const dateIndex = tokens.findIndex(token => /^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(token));
+  if (dateIndex <= 0 || dateIndex + 4 >= tokens.length) return null;
+
+  const sexo = tokens[dateIndex + 1];
+  const acToken = tokens[dateIndex + 2];
+  const siToken = tokens[dateIndex + 3];
+  const cecotToken = tokens[dateIndex + 4];
+
+  if (!/^(MASCULINO|FEMENINO)$/i.test(sexo)) return null;
+  if (!/^AC$/i.test(acToken) || !/^SI$/i.test(siToken)) return null;
+  if (!/^\d{5,}$/.test(cecotToken)) return null;
+
+  const nameTokens = tokens.slice(0, dateIndex);
+  if (!nameTokens.length) return null;
+
+  let nombres = '';
+  let apellidos = '';
+
+  if (nameTokens.length === 2) {
+    nombres = nameTokens[0];
+    apellidos = nameTokens[1];
+  } else {
+    nombres = nameTokens.slice(0, -2).join(' ');
+    apellidos = nameTokens.slice(-2).join(' ');
+  }
+
+  if (!nombres.trim() || !apellidos.trim()) return null;
+
+  return {
+    nombres: nombres.trim(),
+    apellidos: apellidos.trim(),
+    fechanac: formatStructuredBirthDate(tokens[dateIndex]),
+    cecot: cecotToken.trim()
+  };
+}
+
+function applyStructuredFcNamePattern(inputEl) {
+  if (!inputEl) return;
+
+  const parsed = parseStructuredFcNameInput(inputEl.value);
+  if (!parsed) return;
+
+  const nombresEl = document.getElementById('fc-nombres');
+  const apellidosEl = document.getElementById('fc-apellidos');
+  const fechaEl = document.getElementById('fc-fechanac');
+  const cecotEl = document.getElementById('fc-cecot');
+
+  if (!nombresEl || !apellidosEl || !fechaEl || !cecotEl) return;
+
+  nombresEl.value = parsed.nombres;
+  apellidosEl.value = parsed.apellidos;
+  fechaEl.value = parsed.fechanac;
+  cecotEl.value = parsed.cecot;
+
+  try { updateAgeInfo(); } catch (e) {}
+  fcSaveData();
 }
 
 /* ============================================================
@@ -182,14 +260,14 @@ function saveCurrentClient(opts = {}) {
   const etapa   = data['fc-etapa'] || 'EN_PROCESO';
   let clients   = clientsLoad();
 
-  // Buscar por id activo o por cédula
+  
   let id = fc_activeClientId;
   if (!id && cedula) {
     const byCI = clients.findIndex(c => c.cedula === cedula);
     if (byCI >= 0) id = clients[byCI].id;
   }
 
-  // Calcular displayName
+  
   let displayName = '';
   if (nombres || apell) {
     displayName = `${nombres} ${apell}`.trim();
@@ -225,7 +303,7 @@ function saveCurrentClient(opts = {}) {
    G. CAMBIAR DE CLIENTE (auto-save del anterior)
    ============================================================ */
 function switchToClient(newId) {
-  // Guardar el actual si tiene datos
+  
   const current = formRead();
   const hasData = fcHasMeaningfulData(current);
   if (hasData) saveCurrentClient({ silent: true });
@@ -234,17 +312,17 @@ function switchToClient(newId) {
   if (!client) return;
   formClear();
   formWrite(client);
-  // Try to supplement laboral fields from other saved clients if missing
+  
   tryFillLaborFromSavedCompany(client);
-  // Try to fill personal streets if ciudad + barrio match existing records
+  
   tryFillStreetsFromSimilar(client);
   fc_activeClientId = client.id;
   uiSetActiveClient(client.id, client.displayName);
 
-  // Update age display for the loaded client if fecha exists
+  
   try { updateAgeInfo(); } catch(e){}
 
-  // Regenerar URL si hay datos
+  
   const cecot = document.getElementById('fc-cecot')?.value.trim();
   const ide   = document.getElementById('fc-idempleador')?.value.trim();
   if (cecot && ide) generateIpsUrl(true);
@@ -301,9 +379,35 @@ function fcGenerateText() {
   return lines;
 }
 
+function getSelectedEntityLabel() {
+  const entsChecked = [...document.querySelectorAll('input[name="entidad"]:checked')].map(cb => cb.value);
+  return entsChecked.length ? entsChecked.map(e => e.replace('_', ' ')).join(' / ') : 'TUFI';
+}
+
+function syncUpperCopyButtonLabel() {
+  const btn = document.getElementById('fc-copy-upper');
+  if (!btn) return;
+
+  const selected = [...document.querySelectorAll('input[name="entidad"]:checked')].map(cb => cb.value);
+  const entity = selected.find(value => value === 'SERFIN' || value === 'FINANCORP');
+
+  if (entity === 'SERFIN') {
+    btn.textContent = 'Copiar MAYÚSCULAS (SERFIN S.A.)';
+    return;
+  }
+
+  if (entity === 'FINANCORP') {
+    btn.textContent = 'Copiar MAYÚSCULAS (FINANCORP)';
+    return;
+  }
+
+  btn.textContent = 'Copiar MAYÚSCULAS (SERFIN S.A.)';
+}
+
 function fcGenerateTextUpper() {
-  const entLabel = 'SERFIN S.A.'; // force entity when copying upper
   const get = id => (document.getElementById(id)?.value.trim() || '—');
+  const entsChecked = [...document.querySelectorAll('input[name="entidad"]:checked')].map(cb => cb.value);
+  const entLabel = entsChecked.length ? entsChecked.map(e => e.replace('_', ' ')).join(' / ') : 'TUFI';
 
   const lines = [
     `*SOLICITUD DE CRÉDITO PARA ${entLabel}*`,
@@ -398,21 +502,21 @@ input?.addEventListener('input', () => {
   input.value = input.value.replace(/[.\s]/g, '');
 });
 
-// Sanitize cédula (remove dots and spaces)
+
 const cedEl = document.getElementById('fc-cedula');
 cedEl?.addEventListener('input', () => {
   cedEl.value = cedEl.value.replace(/[.\s]/g, '');
   cedEl.classList.remove('fc-dup-error');
 });
 
-// Duplicate CI check on blur: if exists, load client data, mark input red, clear and blur
+
 cedEl?.addEventListener('blur', () => {
   const ci = cedEl.value.trim();
   if (!ci) return;
   const clients = clientsLoad();
   const found = clients.find(c => (c.cedula || '') === ci);
   if (found) {
-    // Load existing client data, but visually block editing cedula
+    
     formClear();
     formWrite(found);
     fc_activeClientId = found.id;
@@ -423,16 +527,40 @@ cedEl?.addEventListener('blur', () => {
   }
 });
 
-// Sanitize celular and lineabaja: remove dots/spaces, remove +, replace leading 595 with 0
+
 function normalizePhoneValue(v) {
   if (!v) return '';
-  let s = String(v).replace(/[.\s]/g, '');
+  let s = String(v).replace(/[.\s()]/g, '');
   if (s.startsWith('+')) s = s.slice(1);
   if (s.startsWith('595')) s = '0' + s.slice(3);
   return s;
 }
+
+function normalizarTelefonos(texto) {
+  if (typeof texto !== 'string' || !texto.trim()) return '';
+
+  return texto
+    .split('\n')
+    .map(linea => {
+      if (!linea.trim()) return '';
+
+      const regex = /(?:\+\s*595|595)\s*(.*)$/;
+      const coincidencia = linea.match(regex);
+
+      if (!coincidencia) return linea.trim();
+
+      const nombre = linea.replace(regex, '').trim();
+      const numeroLimpio = '0' + coincidencia[1].replace(/\s+/g, '');
+
+      return `${nombre} ${numeroLimpio}`.trim();
+    })
+    .filter(linea => linea !== '')
+    .join('\n');
+}
+
 const celEl = document.getElementById('fc-celular');
 const bajaEl = document.getElementById('fc-lineabaja');
+const referenciasEl = document.getElementById('fc-referencias');
 [celEl, bajaEl].forEach(el => {
   if (!el) return;
   el.addEventListener('input', () => {
@@ -442,7 +570,26 @@ const bajaEl = document.getElementById('fc-lineabaja');
   });
 });
 
-// Fecha de nacimiento: normalize separators to '/', compute age live
+if (referenciasEl) {
+  referenciasEl.addEventListener('paste', () => {
+    setTimeout(() => {
+      referenciasEl.value = normalizarTelefonos(referenciasEl.value);
+    }, 0);
+  });
+
+  referenciasEl.addEventListener('blur', () => {
+    referenciasEl.value = normalizarTelefonos(referenciasEl.value);
+  });
+
+  referenciasEl.addEventListener('input', () => {
+    const value = referenciasEl.value || '';
+    if (value.includes('+595') || value.includes('595')) {
+      referenciasEl.value = normalizarTelefonos(value);
+    }
+  });
+}
+
+
 const fechaEl = document.getElementById('fc-fechanac');
 function ensureAgeInfoElement() {
   let span = document.getElementById('fc-age-info');
@@ -459,7 +606,7 @@ function ensureAgeInfoElement() {
 function updateAgeInfo() {
   const span = ensureAgeInfoElement();
   if (!span) return;
-  // format if user typed continuous digits like 12121212 -> 12/12/1212
+  
   let raw = (fechaEl?.value || '');
   const digits = raw.replace(/[^0-9]/g, '');
   if (digits.length >= 8) {
@@ -471,12 +618,12 @@ function updateAgeInfo() {
     raw = raw.replace(/[-\s]/g, '/');
   }
   fechaEl.value = raw;
-  // If there's no value, clear the span and exit
+  
   if (!raw || !raw.trim()) { span.textContent = ''; return; }
   let dob = parseDateDMY(raw);
   let usedFallback = false;
   if (!dob || isNaN(dob.getTime())) {
-    // try a permissive fallback: extract numeric parts and build a Date even if month/day out of range
+    
     const parts = raw.split('/').map(s => parseInt(s.replace(/[^0-9]/g, ''), 10));
     if (parts.length >= 3 && parts.every(p => !Number.isNaN(p))) {
       const fd = parts[0] || 1;
@@ -494,10 +641,10 @@ function updateAgeInfo() {
   const monthDiff = now.getMonth() - dob.getMonth();
   if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) years--;
 
-  // target 20th birthday
+  
   const target = new Date(dob.getFullYear() + 20, dob.getMonth(), dob.getDate());
 
-  // compute months, days, hours difference (if future)
+  
   let monthsLeft = 0;
   let daysLeft = 0;
   let hoursLeft = 0;
@@ -509,7 +656,7 @@ function updateAgeInfo() {
     hoursLeft = Math.floor(ms / (1000 * 60 * 60));
   }
 
-  // Build display text. If we used permissive fallback, do not prefix with the raw date.
+  
   const ageText = `Edad: ${years} años`;
   if (now < target) {
     const more = `Faltan ${monthsLeft} meses para 20 — ${daysLeft} días — ${hoursLeft} horas`;
@@ -522,7 +669,7 @@ function updateAgeInfo() {
 fechaEl?.addEventListener('input', () => updateAgeInfo());
 fechaEl?.addEventListener('change', () => updateAgeInfo());
 
-// Helpers to match company names/cities
+
 function normalizeForCompare(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^a-z0-9\s]/g, '').trim();
 }
@@ -550,7 +697,212 @@ function cityBelongsToCentralOrAsuncion(city) {
   return false;
 }
 
-// Try to find company info from saved clients and apply to form
+const FC_ENTITY_RULES = {
+  minSalary: 1700000,
+  alwaysAllowed: ['TU_FINANCIERA', 'TKING', 'SOLAR', 'JAPONESA'],
+  specialCompanyKeywords: ['MINISTERIO', 'PREVISION'],
+  ageRule: {
+    enabled: true,
+    minAge: 19,
+    monthsTo20: 6
+  },
+  byEntity: {
+    SOLUCION: {
+      departments: ['ASUNCIÓN', 'CENTRAL'],
+      cities: ['CAACUPE', 'CIUDAD DEL ESTE'],
+      allowSpecialCompany: true
+    },
+    SERFIN: {
+      departments: ['ASUNCIÓN', 'CENTRAL'],
+      cities: []
+    },
+    MARKET: {
+      departments: ['ASUNCIÓN', 'CENTRAL'],
+      cities: []
+    },
+    FINANCORP: {
+      departments: ['ASUNCIÓN', 'CENTRAL'],
+      cities: []
+    },
+    CARSA: {
+      departments: ['ASUNCIÓN', 'CENTRAL'],
+      cities: []
+    },
+    SOLAR: {
+      anyCity: true
+    },
+    JAPONESA: {
+      anyCity: true
+    },
+    TU_FINANCIERA: {
+      anyCity: true
+    },
+    TKING: {
+      anyCity: true
+    }
+  }
+};
+
+const FC_ENTITY_ANY_CITY_EXCEPTIONS = new Set(FC_ENTITY_RULES.alwaysAllowed);
+
+function normalizeEntityValue(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function parseSalaryToNumber(rawValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+  const n = String(rawValue)
+    .replace(/Gs\.?/gi, '')
+    .replace(/\./g, '')
+    .replace(/,/g, '.')
+    .replace(/[^0-9.\-]/g, '');
+  if (!n) return null;
+  const num = Number(n);
+  return Number.isFinite(num) ? num : null;
+}
+
+function companyContainsKeywords(company, keywords) {
+  const text = normalizeForCompare(company || '');
+  return keywords.some(keyword => text.includes(normalizeForCompare(keyword)));
+}
+
+function cityMatchesAny(city, values) {
+  const text = normalizeForCompare(city || '');
+  return values.some(value => text.includes(normalizeForCompare(value)));
+}
+
+function getAgeInfoFromDate(dateString) {
+  if (!dateString) return null;
+  const dob = parseDateDMY(dateString);
+  if (!dob) return null;
+
+  const now = new Date();
+  let years = now.getFullYear() - dob.getFullYear();
+  let months = now.getMonth() - dob.getMonth();
+  let days = now.getDate() - dob.getDate();
+
+  if (days < 0) {
+    months -= 1;
+    const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+    days += prevMonth.getDate();
+  }
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  let monthsLeftTo20 = 0;
+  const target = new Date(dob.getFullYear() + 20, dob.getMonth(), dob.getDate());
+  if (now < target) {
+    monthsLeftTo20 = (target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth());
+    if (now.getDate() > target.getDate()) monthsLeftTo20 = Math.max(0, monthsLeftTo20 - 1);
+  }
+
+  return { years, months, days, monthsLeftTo20 };
+}
+
+function cityMatchesDepartment(city, departmentNames) {
+  const normalizedCity = normalizeForCompare(city || '');
+  const geo = (typeof window !== 'undefined' && window.GEO_DATA) ? window.GEO_DATA : (typeof GEO_DATA !== 'undefined' ? GEO_DATA : {});
+  const deptNames = departmentNames.map(name => normalizeForCompare(name));
+
+  return Object.entries(geo).some(([dept, cities]) => {
+    if (!deptNames.includes(normalizeForCompare(dept))) return false;
+    return (cities || []).some(item => {
+      const itemNorm = normalizeForCompare(item);
+      return itemNorm === normalizedCity || normalizedCity.includes(itemNorm) || itemNorm.includes(normalizedCity);
+    });
+  });
+}
+
+function getEntityAvailabilityMap() {
+  const city = document.getElementById('fc-ciudad-p')?.value || '';
+  const company = document.getElementById('fc-empresa')?.value || '';
+  const salaryRaw = document.getElementById('fc-salario')?.value || '';
+  const birthDate = document.getElementById('fc-fechanac')?.value || '';
+  const salaryNum = parseSalaryToNumber(salaryRaw);
+  const ageInfo = getAgeInfoFromDate(birthDate);
+  const hasSpecialEmpresa = companyContainsKeywords(company, FC_ENTITY_RULES.specialCompanyKeywords);
+
+  const ents = new Map();
+  document.querySelectorAll('input[name="entidad"]').forEach(cb => {
+    ents.set(cb.value, true);
+  });
+
+  const isNear20Rule = ageInfo && ageInfo.years === 19 && ageInfo.monthsLeftTo20 <= FC_ENTITY_RULES.ageRule.monthsTo20;
+  if (isNear20Rule && FC_ENTITY_RULES.ageRule.enabled) {
+    document.querySelectorAll('input[name="entidad"]').forEach(cb => {
+      const enabled = cb.value === 'SOLUCION';
+      ents.set(cb.value, enabled);
+    });
+    return ents;
+  }
+
+  if (salaryNum !== null && salaryNum < FC_ENTITY_RULES.minSalary) {
+    document.querySelectorAll('input[name="entidad"]').forEach(cb => {
+      const enabled = ['TU_FINANCIERA', 'TKING', 'MARKET'].includes(cb.value);
+      ents.set(cb.value, enabled);
+    });
+    return ents;
+  }
+
+  document.querySelectorAll('input[name="entidad"]').forEach(cb => {
+    const value = cb.value;
+    const config = FC_ENTITY_RULES.byEntity[value] || {};
+    let enabled = true;
+
+    if (hasSpecialEmpresa) {
+      if (value === 'SERFIN' || value === 'MARKET') {
+        const cityMatchesCentralOrAsuncion = cityMatchesDepartment(city, ['ASUNCIÓN', 'CENTRAL']) || cityMatchesAny(city, ['asuncion', 'asunción', 'central']);
+        enabled = cityMatchesCentralOrAsuncion;
+      } else {
+        enabled = true;
+      }
+    } else if (config.anyCity) {
+      enabled = true;
+    } else {
+      const cityMatchesDepartmentList = Array.isArray(config.departments)
+        ? cityMatchesDepartment(city, config.departments)
+        : false;
+      const cityMatchesExplicitList = Array.isArray(config.cities)
+        ? cityMatchesAny(city, config.cities.map(c => normalizeForCompare(c)))
+        : false;
+
+      enabled = cityMatchesDepartmentList || cityMatchesExplicitList;
+
+      if (config.allowSpecialCompany && hasSpecialEmpresa) {
+        enabled = true;
+      }
+
+      if (value === 'SERFIN' && hasSpecialEmpresa) {
+        enabled = cityMatchesDepartmentList || cityMatchesExplicitList;
+      }
+    }
+
+    ents.set(value, enabled);
+  });
+
+  return ents;
+}
+
+function applyEntityAvailabilityRules() {
+  const map = getEntityAvailabilityMap();
+  document.querySelectorAll('input[name="entidad"]').forEach(cb => {
+    const enabled = map.get(cb.value) !== false;
+    const wasChecked = cb.checked;
+
+    cb.disabled = !enabled;
+    cb.checked = enabled && wasChecked;
+
+    if (!enabled) {
+      cb.checked = false;
+    }
+
+    cb.closest('label')?.classList.toggle('entity-disabled', !enabled);
+  });
+}
+
 function tryFillFromCompany(opts = {}) {
   const empresa = document.getElementById('fc-empresa')?.value.trim();
   if (!empresa) return null;
@@ -559,7 +911,7 @@ function tryFillFromCompany(opts = {}) {
   const candidates = clients.filter(c => c['fc-empresa'] && companyNameMatches(empresa, c['fc-empresa']));
   if (!candidates.length) return null;
 
-  // Fill ID Empleador from first candidate that has it
+  
   const withId = candidates.find(c => (c['fc-idempleador'] || '').trim());
   if (withId) {
     const ideEl = document.getElementById('fc-idempleador');
@@ -570,21 +922,21 @@ function tryFillFromCompany(opts = {}) {
     }
   }
 
-  // Choose best candidate for address/line fill
+  
   let pick = null;
-  // Priority 1: candidate whose company city is Asuncion or Central
+  
   pick = candidates.find(c => cityIsPriority(c['fc-ciudad-l']));
-  // Priority 2: if user provided currentCity, match company city to it
+  
   if (!pick && currentCity) {
     pick = candidates.find(c => companyNameMatches(currentCity, c['fc-ciudad-l']));
   }
-  // Priority 3: any candidate with useful fields
+  
   if (!pick) {
     pick = candidates.find(c => (c['fc-barrio-l'] || c['fc-direccion-l'] || c['fc-lineabaja']));
   }
 
   if (pick) {
-    // Fill LABORAL fields from company data when empty or when currentCity logic applies
+    
     const ciudadL = document.getElementById('fc-ciudad-l');
     const barrioL = document.getElementById('fc-barrio-l');
     const direccionL = document.getElementById('fc-direccion-l');
@@ -614,7 +966,7 @@ function tryFillFromCompany(opts = {}) {
   return null;
 }
 
-// Listen to empresa blur and ciudad-p change
+
 document.getElementById('fc-empresa')?.addEventListener('blur', () => tryFillFromCompany({ from: 'empresa' }));
 document.getElementById('fc-ciudad-p')?.addEventListener('change', () => tryFillFromCompany({ from: 'ciudad' }));
 
@@ -705,7 +1057,7 @@ function buildKanban() {
     `;
   }).join('');
 
-  // Eventos drag en cards
+  
   board.querySelectorAll('.kcard').forEach(card => {
     card.addEventListener('dragstart', e => {
       draggedClientId = card.dataset.id;
@@ -719,7 +1071,7 @@ function buildKanban() {
     });
   });
 
-  // Cargar cliente
+  
   board.querySelectorAll('.kcard-load').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -729,7 +1081,7 @@ function buildKanban() {
     });
   });
 
-  // Eliminar cliente
+  
   board.querySelectorAll('.kcard-del').forEach(btn => {
     btn.addEventListener('click', async e => {
       e.stopPropagation();
@@ -749,7 +1101,7 @@ function buildKanban() {
     });
   });
 
-  // Drop zones
+  
   board.querySelectorAll('.kcol-body').forEach(col => {
     col.addEventListener('dragover', e => {
       e.preventDefault();
@@ -814,7 +1166,13 @@ function createCityAutocomplete(input) {
   }
 
   function hideDropdown() { dropdown.style.display = 'none'; activeIdx = -1; }
-  function selectCity(city) { input.value = city; hideDropdown(); fcSaveData(); input.dispatchEvent(new Event('input')); }
+  function selectCity(city) {
+    input.value = city;
+    hideDropdown();
+    fcSaveData();
+    applyEntityAvailabilityRules();
+    input.dispatchEvent(new Event('input'));
+  }
   function highlightItem(idx) {
     const items = dropdown.querySelectorAll('.ac-item');
     items.forEach((el, i) => el.classList.toggle('ac-active', i === idx));
@@ -838,7 +1196,7 @@ function createCityAutocomplete(input) {
   input.addEventListener('blur', () => setTimeout(hideDropdown, 150));
 }
 
-// Try to complete laboral data for a loaded client from other saved clients
+
 function tryFillLaborFromSavedCompany(client) {
   try {
     if (!client || !client['fc-empresa']) return null;
@@ -855,13 +1213,13 @@ function tryFillLaborFromSavedCompany(client) {
     const needLinea = !(client['fc-lineabaja'] || '').trim();
     if (!needId && !needCiudad && !needBarrio && !needDireccion && !needLinea) return null;
 
-    // Prefer candidates in Asuncion/Central or matching city
+    
     let pick = matches.find(c => cityIsPriority(c['fc-ciudad-l']));
     if (!pick && client['fc-ciudad-l']) pick = matches.find(c => companyNameMatches(c['fc-ciudad-l'], client['fc-ciudad-l']));
     if (!pick) pick = matches.find(c => (c['fc-idempleador'] || c['fc-barrio-l'] || c['fc-direccion-l'] || c['fc-lineabaja']));
     if (!pick) return null;
 
-    // Apply to DOM and persist to saved client
+    
     const ideEl = document.getElementById('fc-idempleador');
     const ciudadL = document.getElementById('fc-ciudad-l');
     const barrioL = document.getElementById('fc-barrio-l');
@@ -889,7 +1247,7 @@ function tryFillLaborFromSavedCompany(client) {
       client['fc-lineabaja'] = pick['fc-lineabaja'];
     }
 
-    // Persist changes into clients storage for this client
+    
     try {
       const arr = clientsLoad();
       const idx = arr.findIndex(c => c.id === client.id);
@@ -905,8 +1263,8 @@ function tryFillLaborFromSavedCompany(client) {
   } catch (e) { return null; }
 }
 
-// If a loaded client's ciudad-p and barrio-p are similar to some saved client,
-// fill the personal direccion-p from the first match found.
+
+
 function tryFillStreetsFromSimilar(client) {
   try {
     if (!client) return null;
@@ -914,7 +1272,7 @@ function tryFillStreetsFromSimilar(client) {
     const barrio = (client['fc-barrio-p'] || '').trim();
     if (!ciudad || !barrio) return null;
 
-    // If client already has direccion-p, nothing to do
+    
     if ((client['fc-direccion-p'] || '').trim()) return null;
 
     const others = clientsLoad().filter(c => c.id !== client.id);
@@ -931,7 +1289,7 @@ function tryFillStreetsFromSimilar(client) {
     const direccion = match['fc-direccion-p'] || match['fc-direccion-l'] || '';
     if (!direccion) return null;
 
-    // Apply to DOM and persist
+    
     const dirEl = document.getElementById('fc-direccion-p');
     if (dirEl) dirEl.value = direccion;
     client['fc-direccion-p'] = direccion;
@@ -948,7 +1306,7 @@ function tryFillStreetsFromSimilar(client) {
   } catch (e) { return null; }
 }
 
-// Autocomplete for company input: show company + city suggestions from saved clients
+
 function createCompanyAutocomplete(input) {
   if (!input) return;
   const dropdown = document.createElement('div');
@@ -976,7 +1334,7 @@ function createCompanyAutocomplete(input) {
   function hide() { dropdown.style.display = 'none'; activeIdx = -1; }
   function select(r) {
     input.value = r.company || '';
-    // fill laboral fields
+    
     if (r.city) document.getElementById('fc-ciudad-l').value = r.city;
     if (r.barrio) document.getElementById('fc-barrio-l').value = r.barrio;
     if (r.direccion) document.getElementById('fc-direccion-l').value = r.direccion;
@@ -1038,11 +1396,11 @@ function generateIpsUrl(silent) {
   const openBtn = document.getElementById('fc-openurl');
   const copyBtn = document.getElementById('fc-copyurl');
   if (!cecot || !ide) { if (!silent) showToast('⚠ Completá CECOT e ID Empleador'); return; }
-  // Load stored cod_period (single-time configurable by user)
+  
   let cfg = {};
   try { cfg = JSON.parse(localStorage.getItem(FC_IPS_CONFIG) || '{}'); } catch(e) { cfg = {}; }
   const codPeriod = cfg.cod_period || '1002,1001,1000';
-  const url = `https://servicios.ips.gov.py/miips/inf_tarjetita_pdf.php?ide_emplea=${encodeURIComponent(ide)}&cod_period=${encodeURIComponent(codPeriod)}&ide_asecot=${encodeURIComponent(cecot)}&order=`;
+  
   if (urlOut)  urlOut.value = url;
   if (openBtn) { openBtn.href = url; openBtn.style.display = 'inline-flex'; }
   if (copyBtn) copyBtn.style.display = 'inline-flex';
@@ -1071,7 +1429,7 @@ function initUrlGenerator() {
     });
   });
 
-  // Add an Edit button to configure cod_period once (persists until edited)
+  
   try {
     const genBtn = document.getElementById('fc-genurl');
     if (genBtn && !document.getElementById('fc-edit-ips-config')) {
@@ -1196,6 +1554,7 @@ function fcSaveData() {
   data._activeClientId = fc_activeClientId;
   localStorage.setItem(FC_STORAGE_KEY, JSON.stringify(data));
   if (fc_activeClientId) uiMarkDirty();
+  applyEntityAvailabilityRules();
   pipelineUpdateCounts();
 }
 
@@ -1210,7 +1569,7 @@ function fcLoadDraft() {
       }
     }
     formWrite(saved);
-    // Ensure age info is updated after loading draft data
+    
     try { updateAgeInfo(); } catch(e){}
     const cecot = document.getElementById('fc-cecot')?.value.trim();
     const ide   = document.getElementById('fc-idempleador')?.value.trim();
@@ -1258,13 +1617,17 @@ window.addEventListener('beforeunload', e => {
   });
 
   document.getElementById('newClientBtn')?.addEventListener('click', () => {
-    // Auto-guardar el actual
+    
     const data = formRead();
     const hasData = fcHasMeaningfulData(data);
     if (hasData) saveCurrentClient({ silent: true });
 
     fc_activeClientId = null;
     formClear();
+
+    const est = document.getElementById('fc-estadocivil');
+    if (est) est.value = 'Soltero';
+
     uiSetActiveClient(null, null);
     if (panel) panel.style.display = 'none';
     localStorage.removeItem(FC_STORAGE_KEY);
@@ -1302,11 +1665,41 @@ window.addEventListener('beforeunload', e => {
     el.addEventListener('input',  fcSaveData);
     el.addEventListener('change', fcSaveData);
   });
+
+  const nombresInput = document.getElementById('fc-nombres');
+  if (nombresInput) {
+    nombresInput.addEventListener('input', () => applyStructuredFcNamePattern(nombresInput));
+    nombresInput.addEventListener('change', () => applyStructuredFcNamePattern(nombresInput));
+    nombresInput.addEventListener('paste', () => {
+      setTimeout(() => applyStructuredFcNamePattern(nombresInput), 0);
+    });
+  }
+
   document.querySelectorAll('input[name="entidad"]').forEach(cb => {
-    cb.addEventListener('change', fcSaveData);
+    cb.addEventListener('change', () => {
+      fcSaveData();
+      syncUpperCopyButtonLabel();
+      applyEntityAvailabilityRules();
+    });
   });
 
-  // Actualizar nombre visible en tiempo real
+  ['fc-ciudad-p', 'fc-empresa', 'fc-salario', 'fc-fechanac'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      applyEntityAvailabilityRules();
+      fcSaveData();
+    });
+    el.addEventListener('change', () => {
+      applyEntityAvailabilityRules();
+      fcSaveData();
+    });
+  });
+
+  applyEntityAvailabilityRules();
+  syncUpperCopyButtonLabel();
+
+  
   ['fc-nombres', 'fc-apellidos'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', () => {
       if (!fc_activeClientId) return;
@@ -1319,7 +1712,7 @@ window.addEventListener('beforeunload', e => {
     });
   });
 
-  // Limpiar
+  
   document.getElementById('fc-clear')?.addEventListener('click', () => {
     if (!confirm('¿Limpiar todos los campos?')) return;
     fc_activeClientId = null;
@@ -1329,7 +1722,7 @@ window.addEventListener('beforeunload', e => {
     showToast('🗑 Formulario limpiado');
   });
 
-  // Copiar al portapapeles
+  
   document.getElementById('fc-copy')?.addEventListener('click', () => {
     const text = fcGenerateText();
     if (navigator.clipboard && window.isSecureContext) {
@@ -1339,7 +1732,7 @@ window.addEventListener('beforeunload', e => {
     } else { fallbackCopy(text); }
   });
 
-  // Descargar .txt
+  
   document.getElementById('fc-download')?.addEventListener('click', () => {
     saveCurrentClient({ silent: true });
     const client   = fc_activeClientId ? clientById(fc_activeClientId) : null;
@@ -1348,26 +1741,30 @@ window.addEventListener('beforeunload', e => {
     showToast('✓ Descargado: ' + filename);
   });
 
-  // Autocomplete ciudades
+  
   createCityAutocomplete(document.getElementById('fc-ciudad-p'));
   createCityAutocomplete(document.getElementById('fc-ciudad-l'));
-  // Autocomplete empresas (show company + city suggestions)
+  
   createCompanyAutocomplete(document.getElementById('fc-empresa'));
 
   initUrlGenerator();
   initEntityTooltips();
-  // Defaults: estado civil = Soltero (if empty)
+  
   try {
     const est = document.getElementById('fc-estadocivil');
     if (est && (!est.value || est.value.trim() === '')) est.value = 'Soltero';
   } catch(e){}
 
-  // Entities: by default mark checked and add marker (will not change labels)
+  
   document.querySelectorAll('input[name="entidad"]').forEach(cb => {
-    try { cb.checked = true; cb.dataset.default = 'negative'; } catch(e){}
+    try {
+      cb.checked = false;
+      cb.dataset.default = 'negative';
+    } catch(e){}
   });
+  applyEntityAvailabilityRules();
 
-  // Add button to copy entire form in UPPERCASE and set entidad to SERFIN S.A. in the copied text
+  
   try {
     const copyBtn = document.getElementById('fc-copy');
     if (copyBtn && !document.getElementById('fc-copy-upper')) {
@@ -1378,6 +1775,7 @@ window.addEventListener('beforeunload', e => {
       upBtn.style.marginLeft = '6px';
       upBtn.textContent = 'Copiar MAYÚSCULAS (SERFIN S.A.)';
       copyBtn.parentElement?.insertBefore(upBtn, copyBtn.nextSibling);
+      syncUpperCopyButtonLabel();
       upBtn.addEventListener('click', () => {
         const text = fcGenerateTextUpper();
         if (navigator.clipboard && window.isSecureContext) {
@@ -1404,7 +1802,7 @@ function fallbackCopy(text) {
   document.body.removeChild(ta);
 }
 
-// Alias de compatibilidad
+
 function fcClearFields() { formClear(); }
 
 window.TufiFormContact = {

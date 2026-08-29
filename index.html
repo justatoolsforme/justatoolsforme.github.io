@@ -180,7 +180,7 @@
             <label for="fc-estadocivil">Estado civil</label>
             <select id="fc-estadocivil">
               <option value="">— Seleccionar —</option>
-              <option>Soltero/a</option>
+              <option selected>Soltero/a</option>
               <option>Casado/a</option>
               <option>Divorciado/a</option>
               <option>Viudo/a</option>
@@ -223,6 +223,12 @@
             <span class="entity-info-btn" data-info="No califican funcionarios públicos contratados. Al enviar: boletas IPS en PDF, cédula en PDF y autorización en PDF separados.">ℹ</span>
           </label>
           <label class="entity-check">
+            <input type="checkbox" id="ent-tking" name="entidad" value="TKING">
+            <span class="entity-check-box"></span>
+            <span class="entity-check-name">TKING</span>
+            <span class="entity-info-btn" data-info="Acepta clientes de cualquier ciudad y cumple reglas especiales por salario y edad.">ℹ</span>
+          </label>
+          <label class="entity-check">
             <input type="checkbox" id="ent-solar" name="entidad" value="SOLAR">
             <span class="entity-check-box"></span>
             <span class="entity-check-name">SOLAR</span>
@@ -239,6 +245,18 @@
             <span class="entity-check-box"></span>
             <span class="entity-check-name">CARSA</span>
             <span class="entity-info-btn" data-info="Consultar en sistema. Si aparece como nuevo, consultar en grupo. Contratados: 2 años de antigüedad mínima.">ℹ</span>
+          </label>
+          <label class="entity-check">
+            <input type="checkbox" id="ent-financorp" name="entidad" value="FINANCORP">
+            <span class="entity-check-box"></span>
+            <span class="entity-check-name">FINANCORP</span>
+            <span class="entity-info-btn" data-info="Solicitar autorización del cliente con contacto directo desde Financorp. Requiere revisión del grupo.">ℹ</span>
+          </label>
+          <label class="entity-check">
+            <input type="checkbox" id="ent-serfin" name="entidad" value="SERFIN">
+            <span class="entity-check-box"></span>
+            <span class="entity-check-name">SERFIN</span>
+            <span class="entity-info-btn" data-info="Proceso por grupo SERFIN. Revisar documentación y requisitos de la entidad antes de enviar.">ℹ</span>
           </label>
           <label class="entity-check">
             <input type="checkbox" id="ent-market" name="entidad" value="MARKET">

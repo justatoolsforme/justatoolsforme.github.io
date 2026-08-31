@@ -251,7 +251,7 @@ function uiMarkClean() {
 function saveCurrentClient(opts = {}) {
   const data    = formRead();
   if (!fcHasMeaningfulData(data)) {
-    if (!opts.silent) showToast('âš  CompletÃ¡ al menos un dato del cliente antes de guardar');
+    if (!opts.silent) showToast('⚠ Completá al menos un dato del cliente antes de guardar');
     return null;
   }
   const nombres = data['fc-nombres']?.trim() || '';
@@ -1400,6 +1400,7 @@ function generateIpsUrl(silent) {
   let cfg = {};
   try { cfg = JSON.parse(localStorage.getItem(FC_IPS_CONFIG) || '{}'); } catch(e) { cfg = {}; }
   const codPeriod = cfg.cod_period || '1002,1001,1000';
+  const url = `https://servicios.ips.gov.py/miips/inf_tarjetita_pdf.php?ide_emplea=${encodeURIComponent(ide)}&cod_period=${encodeURIComponent(codPeriod)}&ide_asecot=${encodeURIComponent(cecot)}&order=`;
   
   if (urlOut)  urlOut.value = url;
   if (openBtn) { openBtn.href = url; openBtn.style.display = 'inline-flex'; }

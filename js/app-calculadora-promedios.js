@@ -20,11 +20,17 @@ function extraerSalariosRobusto(texto) {
   if (typeof texto !== 'string' || !texto.trim()) return [];
 
   try {
+    // Normalizamos espacios "raros" (non-breaking space, etc.) que a veces
+    // vienen al copiar texto desde un PDF, y unificamos saltos de línea.
+    const textoNormalizado = texto
+      .normalize('NFKC')
+      .replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000]/g, ' ');
+
     const regex = /Gs\s*\.?\s*:\s*([0-9][0-9.]*)/gi;
     const cleaned = [];
     let match;
 
-    while ((match = regex.exec(texto)) !== null) {
+    while ((match = regex.exec(textoNormalizado)) !== null) {
       const bloqueNumero = String(match[1] || '').trim();
       if (!bloqueNumero) continue;
 

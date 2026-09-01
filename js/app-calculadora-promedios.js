@@ -20,9 +20,8 @@ function extraerSalariosRobusto(texto) {
   if (typeof texto !== 'string' || !texto.trim()) return [];
 
   try {
-    const regex = /Gs\s*\.?\s*:\s*([0-9]+(?:\.[0-9]+)*)/gi;
+    const regex = /Gs\s*\.?\s*:\s*([0-9][0-9.]*)/gi;
     const cleaned = [];
-    const vistos = new Set();
     let match;
 
     while ((match = regex.exec(texto)) !== null) {
@@ -35,11 +34,9 @@ function extraerSalariosRobusto(texto) {
       const numero = Number(numeroLimpio);
       if (!Number.isSafeInteger(numero) || numero < 0) continue;
 
-      const clave = String(numero);
-      if (!vistos.has(clave)) {
-        vistos.add(clave);
-        cleaned.push(numero);
-      }
+      // No deduplicamos por valor: dos meses distintos pueden declarar
+      // exactamente el mismo salario y ambos montos deben conservarse.
+      cleaned.push(numero);
     }
 
     return cleaned;
@@ -47,6 +44,10 @@ function extraerSalariosRobusto(texto) {
     console.error('Error al procesar el texto de salarios:', error);
     return [];
   }
+}
+
+function sanitizeDigitsOnly(value) {
+  return String(value || '').replace(/[^0-9]/g, '');
 }
 
 forceGsInputsAsText();
@@ -60,15 +61,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const valor = String(input.value || '');
     const salarios = extraerSalariosRobusto(valor);
 
-    if (salarios.length !== 3) {
+    if (salarios.length < 3) {
       if (/Gs\s*\.?\s*:/i.test(valor)) {
         gsAverageInputs.forEach(field => { field.value = ''; });
       }
       return false;
     }
 
+    const primerosTres = salarios.slice(0, 3);
     gsAverageInputs.forEach((field, index) => {
-      field.value = String(salarios[index]);
+      field.value = String(primerosTres[index]);
     });
 
     return true;
@@ -102,7 +104,13 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
       const ok = completarPromedioDesdeTexto(input);
-      if (ok) calculateGsAverage();
+      if (ok) {
+        calculateGsAverage();
+      } else if (!/Gs\s*\.?\s*:/i.test(value)) {
+        // Número suelto (sin el texto del IPS): garantizamos que quede
+        // como entero sin puntos ni otros caracteres.
+        input.value = sanitizeDigitsOnly(value);
+      }
     });
 
     input.addEventListener('change', function() {
@@ -117,9 +125,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     input.addEventListener('input', function() {
       const value = String(input.value || '');
+
       if (/Gs\s*\.?\s*:/i.test(value)) {
         const ok = completarPromedioDesdeTexto(input);
         if (ok) calculateGsAverage();
+        return;
+      }
+
+      // Escritura o pegado de un número suelto: forzamos entero en vivo,
+      // quitando puntos, espacios o cualquier caracter no numérico.
+      const sanitized = sanitizeDigitsOnly(value);
+      if (sanitized !== value) {
+        const posFromEnd = value.length - (input.selectionStart ?? value.length);
+        input.value = sanitized;
+        const newPos = Math.max(0, sanitized.length - posFromEnd);
+        try { input.setSelectionRange(newPos, newPos); } catch (e) {}
       }
     });
   });
@@ -165,7 +185,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     button.addEventListener('click', function() {
-      const values = inputs.map(input => parseFloat(input.value) || 0);
+      const values = inputs.map(input => {
+        const digits = sanitizeDigitsOnly(input.value);
+        return digits ? parseInt(digits, 10) : 0;
+      });
       const hasData = values.some(value => value !== 0);
 
       if (!hasData) {

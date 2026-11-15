@@ -15,7 +15,7 @@ const FC_FIELD_IDS = [
   'fc-nombres', 'fc-apellidos', 'fc-cedula', 'fc-fechanac',
   'fc-estadocivil', 'fc-celular',
   'fc-ciudad-p', 'fc-barrio-p', 'fc-direccion-p',
-  'fc-empresa', 'fc-salario',
+  'fc-empresa', 'fc-cargo', 'fc-salario',
   'fc-ciudad-l', 'fc-barrio-l', 'fc-direccion-l', 'fc-lineabaja',
   'fc-referencias', 'fc-monto', 'fc-plazo', 'fc-etapa',
   'fc-cecot', 'fc-idempleador'
@@ -34,6 +34,12 @@ const FC_IGNORED_MEANINGFUL_FIELDS = new Set(['fc-etapa', 'fc-origen']);
 
 let fc_activeClientId = null;
 let fc_isDirty = false;
+let fc_autoSaveTimer = null;
+
+const FC_UNDO_LIMIT = 50;
+let fc_undoStack = [];
+let fc_undoEditSnapshot = null;
+let fc_undoApplying = false;
 
 /* ============================================================
    B. UTILS
@@ -213,6 +219,19 @@ function formClear() {
   if (copyBtn) copyBtn.style.display = 'none';
 }
 
+function loadClientData(data) {
+  clearTimeout(fc_autoSaveTimer);
+  fc_autoSaveTimer = null;
+  fc_activeClientId = null;
+  formClear();
+  formWrite(data);
+  uiSetActiveClient(null, null);
+  fcResetUndoHistory();
+  try { updateAgeInfo(); } catch (error) { console.warn('[FC] No se pudo actualizar la edad al importar:', error); }
+  syncUpperCopyButtonLabel();
+  fcSaveData();
+}
+
 /* ============================================================
    E. BARRA CLIENTE ACTIVO
    ============================================================ */
@@ -249,6 +268,8 @@ function uiMarkClean() {
    F. GUARDAR CLIENTE
    ============================================================ */
 function saveCurrentClient(opts = {}) {
+  clearTimeout(fc_autoSaveTimer);
+  fc_autoSaveTimer = null;
   const data    = formRead();
   if (!fcHasMeaningfulData(data)) {
     if (!opts.silent) showToast('âš  CompletÃ¡ al menos un dato del cliente antes de guardar');
@@ -263,7 +284,9 @@ function saveCurrentClient(opts = {}) {
   
   let id = fc_activeClientId;
   if (!id && cedula) {
-    const byCI = clients.findIndex(c => c.cedula === cedula);
+    const normalizeCi = value => String(value || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const normalizedCedula = normalizeCi(cedula);
+    const byCI = clients.findIndex(c => normalizeCi(c.cedula || c['fc-cedula']) === normalizedCedula);
     if (byCI >= 0) id = clients[byCI].id;
   }
 
@@ -290,8 +313,11 @@ function saveCurrentClient(opts = {}) {
   if (idx >= 0) clients[idx] = snapshot;
   else clients.push(snapshot);
 
-  clientsSave(clients);
   fc_activeClientId = snapshot.id;
+  clientsSave(clients);
+  const draft = formRead();
+  draft._activeClientId = snapshot.id;
+  localStorage.setItem(FC_STORAGE_KEY, JSON.stringify(draft));
   uiSetActiveClient(snapshot.id, snapshot.displayName);
   uiMarkClean();
   pipelineUpdateCounts();
@@ -303,6 +329,8 @@ function saveCurrentClient(opts = {}) {
    G. CAMBIAR DE CLIENTE (auto-save del anterior)
    ============================================================ */
 function switchToClient(newId) {
+  clearTimeout(fc_autoSaveTimer);
+  fc_autoSaveTimer = null;
   
   const current = formRead();
   const hasData = fcHasMeaningfulData(current);
@@ -327,6 +355,7 @@ function switchToClient(newId) {
   const ide   = document.getElementById('fc-idempleador')?.value.trim();
   if (cecot && ide) generateIpsUrl(true);
 
+  fcResetUndoHistory();
   showToast('📂 ' + client.displayName);
 }
 
@@ -356,6 +385,7 @@ function fcGenerateText() {
     '',
     '*DATOS LABORALES*',
     `* Empresa: ${get('fc-empresa')}`,
+    `* Cargo / nombre laboral: ${get('fc-cargo')}`,
     `* Ciudad: ${get('fc-ciudad-l')}`,
     `* Barrio: ${get('fc-barrio-l')}`,
     `* Dirección: ${get('fc-direccion-l')}`,
@@ -407,7 +437,7 @@ function syncUpperCopyButtonLabel() {
 function fcGenerateTextUpper() {
   const get = id => (document.getElementById(id)?.value.trim() || '—');
   const entsChecked = [...document.querySelectorAll('input[name="entidad"]:checked')].map(cb => cb.value);
-  const entLabel = entsChecked.length ? entsChecked.map(e => e.replace('_', ' ')).join(' / ') : 'TUFI';
+  const entLabel = entsChecked.length ? entsChecked.map(e => e.replace('_', ' ')).join(' / ') : 'SERFIN';
 
   const lines = [
     `*SOLICITUD DE CRÉDITO PARA ${entLabel}*`,
@@ -427,6 +457,7 @@ function fcGenerateTextUpper() {
     '',
     '*DATOS LABORALES*',
     `* EMPRESA: ${get('fc-empresa')}`,
+    `* CARGO / NOMBRE LABORAL: ${get('fc-cargo')}`,
     `* CIUDAD: ${get('fc-ciudad-l')}`,
     `* BARRIO: ${get('fc-barrio-l')}`,
     `* DIRECCIÓN: ${get('fc-direccion-l')}`,
@@ -472,6 +503,7 @@ function fcGenerateTextForClient(client) {
     '',
     '*DATOS LABORALES*',
     `* Empresa: ${g('empresa')}`,
+    `* Cargo / nombre laboral: ${g('cargo')}`,
     `* Ciudad: ${g('ciudad-l')}`,
     `* Barrio: ${g('barrio-l')}`,
     `* Dirección: ${g('direccion-l')}`,
@@ -521,6 +553,7 @@ cedEl?.addEventListener('blur', () => {
     formWrite(found);
     fc_activeClientId = found.id;
     uiSetActiveClient(found.id, found.displayName);
+    fcResetUndoHistory();
     cedEl.classList.add('fc-dup-error');
     cedEl.blur();
     showToast('⚠ Cédula ya existe — cargando datos guardados');
@@ -544,12 +577,12 @@ function normalizarTelefonos(texto) {
     .map(linea => {
       if (!linea.trim()) return '';
 
-      const regex = /(?:\+\s*595|595)\s*(.*)$/;
+      const regex = /(?<!\d)(?:\+\s*595|595)\s*(\d.*)$/;
       const coincidencia = linea.match(regex);
 
       if (!coincidencia) return linea.trim();
 
-      const nombre = linea.replace(regex, '').trim();
+      const nombre = linea.slice(0, coincidencia.index).trim();
       const numeroLimpio = '0' + coincidencia[1].replace(/\s+/g, '');
 
       return `${nombre} ${numeroLimpio}`.trim();
@@ -1035,6 +1068,9 @@ function buildKanban() {
            draggable="true" data-id="${escapeHtml(c.id)}" data-stage="${stage}">
         <div class="kcard-name">${escapeHtml(c.displayName)}</div>
         <div class="kcard-ci">${escapeHtml(c.cedula || '—')}</div>
+        <div class="kcard-sync-status${c._remoteSynced ? ' is-synced' : ''}">
+          ${c._remoteSynced ? '✓ Guardado en nube' : 'Pendiente de sincronizar'}
+        </div>
         <div class="kcard-actions">
           <button class="kcard-btn kcard-load" data-id="${escapeHtml(c.id)}" title="Cargar en formulario">✎ Editar</button>
           <button class="kcard-btn kcard-del" data-id="${escapeHtml(c.id)}" title="Eliminar">✕</button>
@@ -1554,10 +1590,28 @@ function fcSaveData() {
   data._activeClientId = fc_activeClientId;
   localStorage.setItem(FC_STORAGE_KEY, JSON.stringify(data));
   if (fc_activeClientId) uiMarkDirty();
+  fcScheduleClientAutoSave();
   applyEntityAvailabilityRules();
   pipelineUpdateCounts();
 }
 
+function fcScheduleClientAutoSave() {
+  clearTimeout(fc_autoSaveTimer);
+  if (!fcHasMeaningfulData()) return;
+
+  fc_autoSaveTimer = setTimeout(() => {
+    fc_autoSaveTimer = null;
+    const saved = saveCurrentClient({ silent: true });
+    const panel = document.getElementById('clientListPanel');
+    if (saved && panel?.style.display !== 'none') buildKanban();
+  }, 500);
+}
+
+function fcFlushAutoSave() {
+  clearTimeout(fc_autoSaveTimer);
+  fc_autoSaveTimer = null;
+  if (fcHasMeaningfulData()) saveCurrentClient({ silent: true });
+}
 function fcLoadDraft() {
   try {
     const saved = JSON.parse(localStorage.getItem(FC_STORAGE_KEY) || '{}');
@@ -1577,6 +1631,71 @@ function fcLoadDraft() {
   } catch(e) {
     console.warn('[FC] Error cargando draft:', e);
   }
+  fcResetUndoHistory();
+}
+
+/* ============================================================
+   N.1 DESHACER (Ctrl+Z) — solo dentro del formulario actual
+   ============================================================ */
+function fcUpdateUndoButtonState() {
+  const btn = document.getElementById('fc-undo');
+  if (btn) btn.disabled = fc_undoStack.length === 0;
+}
+
+function fcResetUndoHistory() {
+  fc_undoStack = [];
+  fc_undoEditSnapshot = null;
+  fcUpdateUndoButtonState();
+}
+
+function fcCaptureUndoSnapshot() {
+  if (fc_undoApplying) return;
+  fc_undoEditSnapshot = JSON.stringify(formRead());
+}
+
+function fcCommitUndoSnapshot() {
+  if (fc_undoApplying || fc_undoEditSnapshot === null) return;
+  const before = fc_undoEditSnapshot;
+  fc_undoEditSnapshot = null;
+  const current = JSON.stringify(formRead());
+  if (current === before) return;
+  const last = fc_undoStack[fc_undoStack.length - 1];
+  if (last === before) return;
+  fc_undoStack.push(before);
+  if (fc_undoStack.length > FC_UNDO_LIMIT) fc_undoStack.shift();
+  fcUpdateUndoButtonState();
+}
+
+function fcApplyUndoSnapshot(snapshot) {
+  fc_undoApplying = true;
+  try {
+    formWrite(snapshot);
+    try { updateAgeInfo(); } catch(e){}
+    try { applyEntityAvailabilityRules(); } catch(e){}
+    try { syncUpperCopyButtonLabel(); } catch(e){}
+    fcSaveData();
+  } finally {
+    fc_undoApplying = false;
+  }
+  showToast('↩ Cambio deshecho');
+}
+
+function fcUndo() {
+
+  if (fc_undoEditSnapshot !== null) {
+    const before = fc_undoEditSnapshot;
+    const current = JSON.stringify(formRead());
+    fc_undoEditSnapshot = null;
+    if (before !== current) {
+      fcApplyUndoSnapshot(JSON.parse(before));
+      fcUpdateUndoButtonState();
+      return;
+    }
+  }
+
+  if (!fc_undoStack.length) { showToast('⚠ No hay cambios para deshacer'); return; }
+  fcApplyUndoSnapshot(JSON.parse(fc_undoStack.pop()));
+  fcUpdateUndoButtonState();
 }
 
 /* ============================================================
@@ -1617,6 +1736,8 @@ window.addEventListener('beforeunload', e => {
   });
 
   document.getElementById('newClientBtn')?.addEventListener('click', () => {
+    clearTimeout(fc_autoSaveTimer);
+    fc_autoSaveTimer = null;
     
     const data = formRead();
     const hasData = fcHasMeaningfulData(data);
@@ -1632,6 +1753,7 @@ window.addEventListener('beforeunload', e => {
     if (panel) panel.style.display = 'none';
     localStorage.removeItem(FC_STORAGE_KEY);
     document.querySelectorAll('.pipeline-tab').forEach(t => t.classList.remove('active'));
+    fcResetUndoHistory();
     showToast('🆕 Formulario listo para nuevo cliente');
   });
 
@@ -1664,6 +1786,25 @@ window.addEventListener('beforeunload', e => {
     if (!el) return;
     el.addEventListener('input',  fcSaveData);
     el.addEventListener('change', fcSaveData);
+    el.addEventListener('focus', fcCaptureUndoSnapshot);
+    el.addEventListener('blur',  fcCommitUndoSnapshot);
+    el.addEventListener('change', fcCommitUndoSnapshot);
+    el.addEventListener('blur', fcFlushAutoSave);
+    el.addEventListener('change', fcFlushAutoSave);
+  });
+
+  document.querySelectorAll('input[name="entidad"]').forEach(cb => {
+    cb.addEventListener('focus', fcCaptureUndoSnapshot);
+    cb.addEventListener('change', fcCommitUndoSnapshot);
+    cb.addEventListener('blur', fcFlushAutoSave);
+  });
+
+  document.getElementById('fc-undo')?.addEventListener('click', fcUndo);
+
+  document.getElementById('creditForm')?.closest('.form-container')?.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return;
+    e.preventDefault();
+    fcUndo();
   });
 
   const nombresInput = document.getElementById('fc-nombres');
@@ -1680,6 +1821,7 @@ window.addEventListener('beforeunload', e => {
       fcSaveData();
       syncUpperCopyButtonLabel();
       applyEntityAvailabilityRules();
+      fcFlushAutoSave();
     });
   });
 
@@ -1715,10 +1857,13 @@ window.addEventListener('beforeunload', e => {
   
   document.getElementById('fc-clear')?.addEventListener('click', () => {
     if (!confirm('¿Limpiar todos los campos?')) return;
+    clearTimeout(fc_autoSaveTimer);
+    fc_autoSaveTimer = null;
     fc_activeClientId = null;
     uiSetActiveClient(null, null);
     formClear();
     localStorage.removeItem(FC_STORAGE_KEY);
+    fcResetUndoHistory();
     showToast('🗑 Formulario limpiado');
   });
 
@@ -1812,8 +1957,10 @@ window.TufiFormContact = {
   fcHasMeaningfulData,
   fcGenerateText,
   fcGenerateTextForClient,
+  loadClientData,
   formRead,
   saveCurrentClient,
+  clientsSave,
   stageLabelMap: STAGE_LABEL,
   switchToClient,
   getActiveClientId: () => fc_activeClientId

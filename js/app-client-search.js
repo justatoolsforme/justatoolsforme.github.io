@@ -7,6 +7,18 @@
   const sourceSelect = document.getElementById('cs-source');
   const fieldSelect = document.getElementById('cs-field');
   const stageSelect = document.getElementById('cs-stage');
+  const birthFromInput = document.getElementById('cs-birth-from');
+  const birthToInput = document.getElementById('cs-birth-to');
+  const ageMinInput = document.getElementById('cs-age-min');
+  const ageMaxInput = document.getElementById('cs-age-max');
+  const nextAgeInput = document.getElementById('cs-next-age');
+  const apiCedulaInput = document.getElementById('cs-api-cedula');
+  const apiCecotInput = document.getElementById('cs-api-cecot');
+  const apiEmployerInput = document.getElementById('cs-api-employer');
+  const apiCedulaButton = document.getElementById('cs-api-search-cedula');
+  const apiFuncionarioButton = document.getElementById('cs-api-search-funcionario');
+  const apiIpButton = document.getElementById('cs-api-search-ip');
+  const apiResultsEl = document.getElementById('cs-api-results');
   const clearBtn = document.getElementById('cs-clear');
   const countEl = document.getElementById('cs-count');
   const resultsEl = document.getElementById('cs-results');
@@ -15,6 +27,7 @@
   if (!queryInput || !sourceSelect || !fieldSelect || !stageSelect || !clearBtn || !countEl || !resultsEl) return;
 
   let indexedClients = [];
+  let apiSearchRecords = [];
 
   function getApi() {
     return window.TufiFormContact || null;
@@ -119,8 +132,10 @@
         getClientValue(client, 'nombres'),
         getClientValue(client, 'apellidos'),
         getClientValue(client, 'cedula'),
+        getClientValue(client, 'fechanac'),
         getClientValue(client, 'celular'),
         getClientValue(client, 'empresa'),
+        getClientValue(client, 'cargo'),
         getClientValue(client, 'ciudad-p'),
         getClientValue(client, 'ciudad-l'),
         getClientValue(client, 'barrio-p'),
@@ -138,6 +153,7 @@
       nombres: normalizeText(getClientValue(client, 'nombres')),
       apellidos: normalizeText(getClientValue(client, 'apellidos')),
       cedula: normalizeText(getClientValue(client, 'cedula')),
+      fechanac: normalizeText(getClientValue(client, 'fechanac')),
       celular: normalizeText(getClientValue(client, 'celular')),
       salario: normalizeText(getClientValue(client, 'salario')),
       empresa: normalizeText(getClientValue(client, 'empresa')),
@@ -154,6 +170,39 @@
       entidades: normalizeText(getClientEntities(client).join(' ')),
       ips: normalizeText([getClientValue(client, 'cecot'), getClientValue(client, 'idempleador')].join(' '))
     };
+  }
+
+  function parseBirthDate(value) {
+    const text = String(value || '').trim().split('T')[0];
+    if (!text) return null;
+
+    let year;
+    let month;
+    let day;
+    let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (match) {
+      year = Number(match[1]);
+      month = Number(match[2]) - 1;
+      day = Number(match[3]);
+    } else {
+      match = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+      if (!match) return null;
+      day = Number(match[1]);
+      month = Number(match[2]) - 1;
+      year = Number(match[3]);
+    }
+
+    const date = new Date(year, month, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null;
+    return date;
+  }
+
+  function getAgeInfo(birthDate, today = new Date()) {
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const birthdayPassed = today.getMonth() > birthDate.getMonth()
+      || (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+    if (!birthdayPassed) age--;
+    return { age, nextBirthdayAge: age + 1 };
   }
 
   // Determine whether remote server actions should be visible:
@@ -245,6 +294,9 @@
           <div class="search-card-badges">
             <span class="search-card-badge ${sourceClass}">${escapeHtml(source)}</span>
             <span class="search-card-badge stage">${escapeHtml(stageLabel)}</span>
+            <span class="search-card-badge ${client._remoteSynced ? 'cloud-synced' : 'cloud-pending'}">
+              ${client._remoteSynced ? '✓ Nube' : 'Pendiente nube'}
+            </span>
           </div>
         </div>
         <div class="search-card-grid">
@@ -287,6 +339,11 @@
     const selectedSource = sourceSelect.value;
     const selectedField = fieldSelect.value;
     const selectedStage = stageSelect.value;
+    const birthFrom = birthFromInput?.value ? new Date(`${birthFromInput.value}T00:00:00`) : null;
+    const birthTo = birthToInput?.value ? new Date(`${birthToInput.value}T23:59:59.999`) : null;
+    const ageMin = ageMinInput?.value === '' ? null : Number(ageMinInput.value);
+    const ageMax = ageMaxInput?.value === '' ? null : Number(ageMaxInput.value);
+    const nextAge = nextAgeInput?.value === '' ? null : Number(nextAgeInput.value);
 
     const results = indexedClients.filter(entry => {
       const client = entry.client;
@@ -295,6 +352,18 @@
 
       if (selectedSource !== 'ALL' && normalizeText(clientSource) !== normalizeText(selectedSource)) return false;
       if (selectedStage !== 'ALL' && clientStage !== selectedStage) return false;
+
+      if (birthFrom || birthTo || ageMin !== null || ageMax !== null || nextAge !== null) {
+        const birthDate = parseBirthDate(getClientValue(client, 'fechanac'));
+        if (!birthDate) return false;
+        if (birthFrom && birthDate < birthFrom) return false;
+        if (birthTo && birthDate > birthTo) return false;
+        const { age, nextBirthdayAge } = getAgeInfo(birthDate);
+        if (ageMin !== null && age < ageMin) return false;
+        if (ageMax !== null && age > ageMax) return false;
+        if (nextAge !== null && nextBirthdayAge !== nextAge) return false;
+      }
+
       if (!query) return true;
 
       // Special numeric comparison for salary: if searching in 'salario' and query is numeric,
@@ -401,16 +470,166 @@
       .replace(/"/g, '&quot;');
   }
 
-  [queryInput, sourceSelect, fieldSelect, stageSelect].forEach(control => {
+  function getRemoteSearchValue(client, key) {
+    const aliases = {
+      nombres: ['nombre', 'firstName', 'first_name'],
+      apellidos: ['apellido', 'lastName', 'last_name'],
+      cedula: ['ci', 'documento', 'document_number'],
+      fechanac: ['fecha_nacimiento', 'fechaNacimiento', 'birthDate', 'birth_date'],
+      empresa: ['employer', 'company'],
+      salario: ['salary'],
+      cecot: ['cecot', 'ips'],
+      idempleador: ['id_empleador', 'employerId', 'employer_id']
+    };
+    const direct = getClientValue(client, key);
+    if (direct !== '') return direct;
+    for (const alias of aliases[key] || []) {
+      if (client?.[alias] !== undefined && client[alias] !== null && String(client[alias]).trim()) return client[alias];
+    }
+    return '';
+  }
+
+  function renderApiSearchResults(records) {
+    apiSearchRecords = Array.isArray(records) ? records : [];
+    if (!apiResultsEl) return;
+    if (!apiSearchRecords.length) {
+      apiResultsEl.innerHTML = '<div class="search-empty">La API no devolvió coincidencias.</div>';
+      return;
+    }
+
+    apiResultsEl.innerHTML = apiSearchRecords.map((record, index) => {
+      const fields = [
+        ['Nombre', getRemoteSearchValue(record, 'nombres')],
+        ['Apellido', getRemoteSearchValue(record, 'apellidos')],
+        ['Número de cédula', getRemoteSearchValue(record, 'cedula')],
+        ['Fecha de nacimiento', getRemoteSearchValue(record, 'fechanac')],
+        ['Empresa', getRemoteSearchValue(record, 'empresa')],
+        ['Cargo / nombre laboral', record.nombre_laboral || getRemoteSearchValue(record, 'cargo')],
+        ['Salario', getRemoteSearchValue(record, 'salario')],
+        ['Nombre laboral', record.nombre_laboral],
+        ['Ingreso último mes', record.ingreso_ultimo_mes],
+        ['Meses con aporte', record.meses_aporte],
+        ['CECOT', getRemoteSearchValue(record, 'cecot')],
+        ['ID empleador', getRemoteSearchValue(record, 'idempleador')]
+      ].filter(([, value]) => value !== '' && value !== null && value !== undefined);
+      return `
+        <article class="search-api-record">
+          <dl>${fields.map(([label, value]) => `
+            <div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>
+          `).join('')}</dl>
+          <button class="btn btn-secondary btn-sm search-api-load-btn" type="button" data-index="${index}">Cargar y guardar cliente</button>
+        </article>`;
+    }).join('');
+
+    apiResultsEl.querySelectorAll('.search-api-load-btn').forEach(button => {
+      button.addEventListener('click', () => {
+        const record = apiSearchRecords[Number(button.dataset.index)];
+        const api = getApi();
+        if (!record || !api?.loadClientData || !api?.saveCurrentClient) {
+          showToast('⚠ No se pudo cargar el cliente en el formulario');
+          return;
+        }
+        const formData = {
+          'fc-nombres': getRemoteSearchValue(record, 'nombres'),
+          'fc-apellidos': getRemoteSearchValue(record, 'apellidos'),
+          'fc-cedula': getRemoteSearchValue(record, 'cedula'),
+          'fc-fechanac': getRemoteSearchValue(record, 'fechanac'),
+          'fc-empresa': getRemoteSearchValue(record, 'empresa'),
+          'fc-cargo': record.nombre_laboral || getRemoteSearchValue(record, 'cargo'),
+          'fc-salario': getRemoteSearchValue(record, 'salario')
+        };
+        api.loadClientData(formData);
+        const saved = api.saveCurrentClient({ silent: true });
+        if (!saved) {
+          showToast('⚠ La respuesta no contiene datos suficientes para guardar');
+          return;
+        }
+        activateView('formcontact');
+        showToast('✓ Cliente cargado y guardado');
+      });
+    });
+  }
+
+  async function searchRemoteByCedula() {
+    const cedula = apiCedulaInput?.value.trim();
+    if (!cedula) {
+      showToast('⚠ Ingresa una cédula para buscar');
+      return;
+    }
+    if (!window.RemoteSync?.searchByCedula) {
+      showToast('⚠ Remote Sync no está disponible');
+      return;
+    }
+    try {
+      apiResultsEl.textContent = 'Buscando en la API…';
+      renderApiSearchResults(await window.RemoteSync.searchByCedula(cedula));
+    } catch (error) {
+      console.error('[ClientSearch] Error en búsqueda por cédula:', error);
+      apiResultsEl.textContent = 'No se pudo completar la búsqueda en la API.';
+      showToast('⚠ Error buscando por cédula en la API');
+    }
+  }
+
+  async function searchRemoteByIp() {
+    const cecot = apiCecotInput?.value.trim() || '';
+    const employerId = apiEmployerInput?.value.trim() || '';
+    if (!cecot && !employerId) {
+      showToast('⚠ Ingresa CECOT o ID empleador para buscar');
+      return;
+    }
+    if (!window.RemoteSync?.searchIp) {
+      showToast('⚠ Remote Sync no está disponible');
+      return;
+    }
+    try {
+      apiResultsEl.textContent = 'Buscando en la API…';
+      renderApiSearchResults(await window.RemoteSync.searchIp({ cecot, idempleador: employerId }));
+    } catch (error) {
+      console.error('[ClientSearch] Error en búsqueda searchip:', error);
+      apiResultsEl.textContent = 'No se pudo completar la búsqueda en la API.';
+      showToast('⚠ Error buscando en la API');
+    }
+  }
+
+  async function searchRemoteFuncionario() {
+    const cedula = apiCedulaInput?.value.trim();
+    if (!cedula) {
+      showToast('⚠ Ingresa una cédula para buscar');
+      return;
+    }
+    if (!window.RemoteSync?.searchFuncionario) {
+      showToast('⚠ Remote Sync no está disponible');
+      return;
+    }
+    try {
+      apiResultsEl.textContent = 'Buscando funcionario…';
+      renderApiSearchResults(await window.RemoteSync.searchFuncionario(cedula));
+    } catch (error) {
+      console.error('[ClientSearch] Error en búsqueda de funcionario:', error);
+      apiResultsEl.textContent = 'No se pudo completar la búsqueda de funcionario.';
+      showToast('⚠ Error buscando funcionario');
+    }
+  }
+
+  [queryInput, sourceSelect, fieldSelect, stageSelect, birthFromInput, birthToInput, ageMinInput, ageMaxInput, nextAgeInput].filter(Boolean).forEach(control => {
     control.addEventListener('input', renderResults);
     control.addEventListener('change', renderResults);
   });
+
+  apiCedulaButton?.addEventListener('click', searchRemoteByCedula);
+  apiFuncionarioButton?.addEventListener('click', searchRemoteFuncionario);
+  apiIpButton?.addEventListener('click', searchRemoteByIp);
 
   clearBtn.addEventListener('click', () => {
     queryInput.value = '';
     sourceSelect.value = 'ALL';
     fieldSelect.value = 'all';
     stageSelect.value = 'ALL';
+    if (birthFromInput) birthFromInput.value = '';
+    if (birthToInput) birthToInput.value = '';
+    if (ageMinInput) ageMinInput.value = '';
+    if (ageMaxInput) ageMaxInput.value = '';
+    if (nextAgeInput) nextAgeInput.value = '';
     renderResults();
   });
 

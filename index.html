@@ -300,6 +300,10 @@
             <input type="text" id="fc-empresa" placeholder="Nombre de la empresa">
           </div>
           <div class="field">
+            <label for="fc-cargo">Cargo / nombre laboral</label>
+            <input type="text" id="fc-cargo" placeholder="Cargo del funcionario">
+          </div>
+          <div class="field">
             <label for="fc-salario">Salario</label>
             <input type="text" id="fc-salario" placeholder="Ej: 2.500.000 Gs.">
           </div>
@@ -364,6 +368,10 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/></svg>
         Limpiar
       </button>
+      <button class="btn btn-ghost" id="fc-undo" type="button" title="Deshacer último cambio (Ctrl+Z)" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-6.7L3 9"/></svg>
+        Deshacer
+      </button>
       <div class="form-footer-right">
         <button class="btn btn-secondary" id="fc-save-client" type="button">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -416,6 +424,7 @@
           <option value="nombres">Nombre</option>
           <option value="apellidos">Apellido</option>
           <option value="cedula">Cedula</option>
+          <option value="fechanac">Fecha de nacimiento</option>
           <option value="celular">Celular</option>
           <option value="empresa">Empresa</option>
           <option value="salario">Salario</option>
@@ -439,7 +448,48 @@
           <option value="RECHAZADOS">RECHAZADOS</option>
         </select>
       </div>
+      <div class="field">
+        <label for="cs-birth-from">Nacimiento desde</label>
+        <input type="date" id="cs-birth-from">
+      </div>
+      <div class="field">
+        <label for="cs-birth-to">Nacimiento hasta</label>
+        <input type="date" id="cs-birth-to">
+      </div>
+      <div class="field">
+        <label for="cs-age-min">Edad desde</label>
+        <input type="number" id="cs-age-min" min="0" max="120" placeholder="Ej. 41">
+      </div>
+      <div class="field">
+        <label for="cs-age-max">Edad hasta</label>
+        <input type="number" id="cs-age-max" min="0" max="120" placeholder="Ej. 49">
+      </div>
+      <div class="field">
+        <label for="cs-next-age">Cumplirá en su próximo cumpleaños</label>
+        <input type="number" id="cs-next-age" min="0" max="120" placeholder="Ej. 20">
+      </div>
       <button class="btn btn-ghost search-clear-btn" id="cs-clear" type="button">Limpiar filtros</button>
+    </div>
+
+    <div class="search-api-panel">
+      <div class="search-api-fields">
+        <div class="field">
+          <label for="cs-api-cedula">Buscar en API por cédula</label>
+          <input type="text" id="cs-api-cedula" placeholder="Número de cédula">
+        </div>
+        <div class="field">
+          <label for="cs-api-cecot">CECOT</label>
+          <input type="text" id="cs-api-cecot" placeholder="CECOT">
+        </div>
+        <div class="field">
+          <label for="cs-api-employer">ID empleador</label>
+          <input type="text" id="cs-api-employer" placeholder="ID empleador">
+        </div>
+        <button class="btn btn-secondary" id="cs-api-search-cedula" type="button">Buscar cédula</button>
+        <button class="btn btn-secondary" id="cs-api-search-funcionario" type="button">Buscar funcionario</button>
+        <button class="btn btn-secondary" id="cs-api-search-ip" type="button">Buscar searchip</button>
+      </div>
+      <div class="search-api-results" id="cs-api-results" aria-live="polite"></div>
     </div>
 
     <div class="search-summary">
@@ -535,13 +585,16 @@
                 <label style="display:flex;gap:6px;align-items:center;margin-left:auto"><input id="rs-enabled" type="checkbox"> Enabled</label>
               </div>
               <div style="margin-bottom:8px">
-                <input id="rs-token" type="text" placeholder="Token" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input id="rs-token" type="password" autocomplete="off" placeholder="Token" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px">
               </div>
             </div>
             <div style="width:360px">
               <div class="grid-endpoints" style="margin-bottom:8px">
                 <input id="rs-endpoint-ping" type="text" placeholder="GET /ping" style="padding:8px;border:1px solid #ccc;border-radius:4px">
                 <input id="rs-endpoint-list" type="text" placeholder="GET /clients" style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input id="rs-endpoint-search" type="text" placeholder="GET /search?cedula=..." style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input id="rs-endpoint-searchip" type="text" placeholder="GET /searchip?cecot=...&amp;idempleador=..." style="padding:8px;border:1px solid #ccc;border-radius:4px">
+                <input id="rs-endpoint-funcionarios" type="text" placeholder="Base GET /funcionarios" style="padding:8px;border:1px solid #ccc;border-radius:4px">
                 <input id="rs-endpoint-save" type="text" placeholder="POST /save" style="padding:8px;border:1px solid #ccc;border-radius:4px">
                 <input id="rs-endpoint-saveall" type="text" placeholder="POST /save-all" style="padding:8px;border:1px solid #ccc;border-radius:4px">
                 <input id="rs-endpoint-softdelete" type="text" placeholder="POST /delete" style="padding:8px;border:1px solid #ccc;border-radius:4px">

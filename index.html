@@ -158,6 +158,14 @@
       </div>
 
       <div class="form-section">
+        <div class="fc-lookup-actions" id="fc-lookup-actions" hidden>
+          <button type="button" class="btn btn-primary" id="fc-search-cedula">
+            Buscar en nómina e IPS
+          </button>
+          <button type="button" class="btn btn-secondary" id="fc-view-lookup" hidden>
+            Ver
+          </button>
+        </div>
         <div class="section-label">Datos Personales</div>
         <div class="form-grid">
           <div class="field">
@@ -179,8 +187,7 @@
           <div class="field">
             <label for="fc-estadocivil">Estado civil</label>
             <select id="fc-estadocivil">
-              <option value="">— Seleccionar —</option>
-              <option selected>Soltero/a</option>
+              <option value="Soltero/a" selected>Soltero/a</option>
               <option>Casado/a</option>
               <option>Divorciado/a</option>
               <option>Viudo/a</option>
@@ -361,6 +368,16 @@
       </div>
 
     </form>
+
+    <dialog class="fc-lookup-dialog" id="fc-lookup-json-dialog" aria-labelledby="fc-lookup-json-title">
+      <div class="fc-lookup-dialog-header">
+        <h2 id="fc-lookup-json-title">Resultado de búsqueda (JSON)</h2>
+        <button type="button" class="btn btn-ghost fc-lookup-dialog-close" id="fc-lookup-json-close" aria-label="Cerrar">
+          Cerrar
+        </button>
+      </div>
+      <pre class="fc-lookup-json" id="fc-lookup-json"></pre>
+    </dialog>
 
     <!-- BOTONES AL FONDO -->
     <div class="form-footer">

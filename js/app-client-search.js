@@ -504,10 +504,7 @@
         ['Número de cédula', getRemoteSearchValue(record, 'cedula')],
         ['Fecha de nacimiento', getRemoteSearchValue(record, 'fechanac')],
         ['Empresa', getRemoteSearchValue(record, 'empresa')],
-        ['Cargo / nombre laboral', record.nombre_laboral || getRemoteSearchValue(record, 'cargo')],
-        ['Salario', getRemoteSearchValue(record, 'salario')],
-        ['Nombre laboral', record.nombre_laboral],
-        ['Ingreso último mes', record.ingreso_ultimo_mes],
+        ['Ingreso', record.ingreso_ultimo_mes ?? getRemoteSearchValue(record, 'salario')],
         ['Meses con aporte', record.meses_aporte],
         ['CECOT', getRemoteSearchValue(record, 'cecot')],
         ['ID empleador', getRemoteSearchValue(record, 'idempleador')]

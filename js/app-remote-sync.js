@@ -7,6 +7,7 @@
 const REMOTE_CONFIG_KEY = 'tufi_remote_config_v1';
 const REMOTE_CLIENTS_KEY = 'tufi_clients_v3';
 let remoteApplyingServerChanges = false;
+let remoteConfigRevision = 0;
 const remoteSendingClientIds = new Set();
 const remotePendingClients = new Map();
 
@@ -31,8 +32,18 @@ function remoteLoadConfig() {
     return {};
   }
 }
-function remoteSaveConfig(cfg) {
-  localStorage.setItem(REMOTE_CONFIG_KEY, JSON.stringify(cfg || {}));
+function remoteSaveConfig(cfg, configChanged = false) {
+  const savedConfig = { ...(cfg || {}) };
+  if (configChanged) {
+    delete savedConfig._lastPing;
+    remoteConfigRevision += 1;
+  }
+  localStorage.setItem(REMOTE_CONFIG_KEY, JSON.stringify(savedConfig));
+}
+function remoteNotifyPingStatus(ok, revision) {
+  window.dispatchEvent(new CustomEvent('tufi:remote-ping-status', {
+    detail: { ok: Boolean(ok), revision }
+  }));
 }
 
 function buildBaseUrl(cfg) {
@@ -44,9 +55,9 @@ function buildBaseUrl(cfg) {
   return `${scheme}://${cfg.url.replace(/\/$/, '')}${port}`;
 }
 
-async function testPing() {
+async function testPing({ allowDisabled = false } = {}) {
   const cfg = remoteLoadConfig();
-  if (!cfg || !cfg.enabled) return false;
+  if (!cfg || (!cfg.enabled && !allowDisabled)) return false;
   const base = buildBaseUrl(cfg);
   if (!base) return false;
   const pingPath = (cfg.endpoints && cfg.endpoints.ping) || '/ping';
@@ -509,6 +520,7 @@ window.RemoteSync = {
   loadConfig: remoteLoadConfig,
   saveConfig: remoteSaveConfig,
   testPing,
+  getConfigRevision: () => remoteConfigRevision,
   saveAll: remoteSaveAll,
   syncAll: remoteSaveAll,
   sendClient: remoteSendClient,
@@ -553,7 +565,8 @@ try {
       const nsaveAll = prompt('SaveAll endpoint (POST bulk)', endpoints.saveAll || '/save-all'); if (nsaveAll === null) return;
       const npdf = prompt('PDF notify endpoint (POST)', endpoints.pdf || '/pdf'); if (npdf === null) return;
       const newCfg = { url: nurl.trim(), port: (nport||'').trim(), useHttps: !!nhttps, token: ntoken.trim(), enabled: !!nEnabled, endpoints: { ping: nping.trim(), save: nsave.trim(), saveAll: nsaveAll.trim(), pdf: npdf.trim() } };
-      remoteSaveConfig(newCfg);
+      remoteSaveConfig(newCfg, true);
+      window.dispatchEvent(new CustomEvent('tufi:remote-config-changed'));
       showToast('✓ Remote config guardada');
     });
   }
@@ -591,7 +604,9 @@ console.log('[Tufi] RemoteSync loaded');
   try {
     const cfg = remoteLoadConfig();
     if (cfg && cfg.enabled) {
+      const revision = remoteConfigRevision;
       const ok = await testPing();
+      remoteNotifyPingStatus(ok, revision);
       if (ok) {
         await testAdmin(); // populate admin flag
         await remoteFetchAllClients();
@@ -675,8 +690,11 @@ console.log('[Tufi] RemoteSync loaded');
       const cfg = remoteLoadConfig();
       try { // temporarily set config from inputs to allow test
         const tmp = Object.assign({}, cfg, { url: document.getElementById('rs-host').value.trim(), port: document.getElementById('rs-port').value.trim(), useHttps: !!document.getElementById('rs-https').checked, token: document.getElementById('rs-token').value.trim(), endpoints: { ...(cfg.endpoints || {}), ping: document.getElementById('rs-endpoint-ping').value.trim() || '/ping' } });
-        remoteSaveConfig(tmp);
-        const ok = await testPing();
+        remoteSaveConfig(tmp, true);
+        window.dispatchEvent(new CustomEvent('tufi:remote-config-changed', { detail: { pingPending: true } }));
+        const revision = remoteConfigRevision;
+        const ok = await testPing({ allowDisabled: true });
+        remoteNotifyPingStatus(ok, revision);
         showToast(ok ? '✓ PONG recibido' : '⚠ No hubo respuesta PONG');
       } catch (e) { showToast('⚠ Error test ping'); }
     });
@@ -702,9 +720,13 @@ console.log('[Tufi] RemoteSync loaded');
             adminDelete: document.getElementById('rs-endpoint-admindelete').value.trim() || '/admin-delete'
           }
         };
-        remoteSaveConfig(cfg);
+        remoteSaveConfig(cfg, true);
+        window.dispatchEvent(new CustomEvent('tufi:remote-config-changed', { detail: { pingPending: true } }));
         showToast('✓ Configuración guardada');
-        if (cfg.enabled && await testPing()) await remoteFetchAllClients();
+        const revision = remoteConfigRevision;
+        const pingOk = cfg.enabled && await testPing();
+        remoteNotifyPingStatus(pingOk, revision);
+        if (pingOk) await remoteFetchAllClients();
       } catch(e) {
         console.error('[RemoteSync] No se pudo guardar la configuración:', e);
         showToast('⚠ No se pudo guardar la configuración');

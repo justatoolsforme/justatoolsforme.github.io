@@ -78,10 +78,28 @@ function fcHasMeaningfulData(data = formRead()) {
   const hasTextData = FC_FIELD_IDS.some(id => {
     if (FC_IGNORED_MEANINGFUL_FIELDS.has(id)) return false;
     const value = data[id];
+    if (id === 'fc-estadocivil' && value === 'Soltero/a') return false;
     return typeof value === 'string' && value.trim() !== '';
   });
 
   return hasTextData || (Array.isArray(data._entidades) && data._entidades.length > 0);
+}
+
+function fcHasClientDetails(data = formRead()) {
+  const hasTextData = FC_FIELD_IDS.some(id => {
+    if (id === 'fc-cedula' || FC_IGNORED_MEANINGFUL_FIELDS.has(id)) return false;
+    const value = data?.[id];
+    if (id === 'fc-estadocivil' && value === 'Soltero/a') return false;
+    return typeof value === 'string' && value.trim() !== '';
+  });
+
+  return hasTextData || (Array.isArray(data?._entidades) && data._entidades.length > 0);
+}
+
+function fcCanAutoSaveClient(data = formRead()) {
+  return fc_activeClientId
+    ? fcHasMeaningfulData(data)
+    : fcHasClientDetails(data);
 }
 
 function normalizeStructuredNameWhitespace(value) {
@@ -91,6 +109,11 @@ function normalizeStructuredNameWhitespace(value) {
 function formatStructuredBirthDate(value) {
   const raw = normalizeStructuredNameWhitespace(value);
   if (!raw) return '';
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  }
   const match = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (!match) return raw;
   const [, day, month, year] = match;
@@ -195,7 +218,14 @@ function formWrite(data) {
   if (!data) return;
   FC_FIELD_IDS.forEach(id => {
     const el = document.getElementById(id);
-    if (el && data[id] !== undefined) el.value = data[id];
+    if (!el || data[id] === undefined) return;
+    if (id === 'fc-estadocivil') {
+      const status = String(data[id] || '').trim();
+      el.value = !status || status === 'Soltero' ? 'Soltero/a' : status;
+      if (!el.value) el.value = 'Soltero/a';
+      return;
+    }
+    el.value = data[id];
   });
   const ents = data._entidades || [];
   document.querySelectorAll('input[name="entidad"]').forEach(cb => {
@@ -536,17 +566,349 @@ input?.addEventListener('input', () => {
 
 
 const cedEl = document.getElementById('fc-cedula');
+let fcLookupRequestId = 0;
+let fcLookupInFlightCedula = '';
+let fcLookupAvailabilityRequestId = 0;
+let fcRemoteLookupReady = false;
+let fcLastLookupJson = null;
+
 cedEl?.addEventListener('input', () => {
   cedEl.value = cedEl.value.replace(/[.\s]/g, '');
   cedEl.classList.remove('fc-dup-error');
 });
 
+function fcLookupCedulaIsCurrent(requestId, cedula) {
+  const current = String(cedEl?.value || '').trim().replace(/[.\s-]/g, '');
+  return requestId === fcLookupRequestId && current === cedula;
+}
 
-cedEl?.addEventListener('blur', () => {
-  const ci = cedEl.value.trim();
+function fcLookupText(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+  return '';
+}
+
+function fcLookupConfigIsReady(remote, config) {
+  const port = String(config?.port || '').trim();
+  const portNumber = Number(port);
+  return Boolean(
+    remote
+    && config?.enabled === true
+    && String(config.url || '').trim()
+    && /^[0-9]{1,5}$/.test(port)
+    && portNumber >= 1
+    && portNumber <= 65535
+    && String(config.token || '').trim()
+    && typeof remote.testPing === 'function'
+    && typeof remote.searchFuncionario === 'function'
+    && typeof remote.searchByCedula === 'function'
+  );
+}
+
+function fcClearLookupJson() {
+  fcLastLookupJson = null;
+  const viewButton = document.getElementById('fc-view-lookup');
+  if (viewButton) viewButton.hidden = true;
+  const jsonOutput = document.getElementById('fc-lookup-json');
+  if (jsonOutput) jsonOutput.textContent = '';
+  const dialog = document.getElementById('fc-lookup-json-dialog');
+  if (dialog?.open) dialog.close();
+}
+
+function fcSetRemoteLookupAvailability(ready) {
+  fcRemoteLookupReady = Boolean(ready);
+  const actions = document.getElementById('fc-lookup-actions');
+  if (actions) actions.hidden = !fcRemoteLookupReady;
+  const searchButton = document.getElementById('fc-search-cedula');
+  if (searchButton) {
+    searchButton.disabled = !fcRemoteLookupReady || Boolean(fcLookupInFlightCedula);
+  }
+  if (!fcRemoteLookupReady) fcClearLookupJson();
+}
+
+async function fcRefreshRemoteLookupAvailability() {
+  const checkId = ++fcLookupAvailabilityRequestId;
+  const remote = window.RemoteSync;
+  const config = remote?.loadConfig?.();
+  if (!fcLookupConfigIsReady(remote, config)) {
+    fcSetRemoteLookupAvailability(false);
+    return false;
+  }
+
+  fcSetRemoteLookupAvailability(false);
+  let pingOk = false;
+  try {
+    pingOk = await remote.testPing();
+  } catch (error) {
+    console.error('[FC] No se pudo comprobar el ping de Remote Sync:', error);
+  }
+  if (checkId !== fcLookupAvailabilityRequestId) return false;
+
+  const latestConfig = remote.loadConfig();
+  const ready = pingOk
+    && fcLookupConfigIsReady(remote, latestConfig)
+    && fcRemoteLookupPingIsFresh(latestConfig);
+  fcSetRemoteLookupAvailability(ready);
+  return ready;
+}
+
+window.addEventListener('tufi:remote-config-changed', event => {
+  if (event.detail?.pingPending === true) {
+    fcSetRemoteLookupAvailability(false);
+    return;
+  }
+  void fcRefreshRemoteLookupAvailability();
+});
+window.addEventListener('tufi:remote-ping-status', event => {
+  const remote = window.RemoteSync;
+  const config = remote?.loadConfig?.();
+  if (event.detail?.revision !== remote?.getConfigRevision?.()) return;
+  fcSetRemoteLookupAvailability(
+    event.detail?.ok === true
+    && fcLookupConfigIsReady(remote, config)
+    && fcRemoteLookupPingIsFresh(config)
+  );
+});
+
+function fcRemoteLookupPingIsFresh(config) {
+  const lastPing = Number(config?._lastPing);
+  const age = Date.now() - lastPing;
+  return Number.isFinite(lastPing) && age >= 0 && age < 60000;
+}
+
+function fcShowLookupJson(record, source, cedula) {
+  fcLastLookupJson = { source, cedula, result: record };
+  const viewButton = document.getElementById('fc-view-lookup');
+  if (viewButton && fcRemoteLookupReady) viewButton.hidden = false;
+}
+
+document.getElementById('fc-search-cedula')?.addEventListener('click', async () => {
+  const cedula = String(cedEl?.value || '').trim().replace(/[.\s-]/g, '');
+  if (!/^[0-9]{5,12}$/.test(cedula)) {
+    showToast('⚠ La cédula debe tener entre 5 y 12 dígitos', 4000);
+    return;
+  }
+  await fcSearchByCedula(cedula);
+});
+
+document.getElementById('fc-view-lookup')?.addEventListener('click', () => {
+  if (!fcRemoteLookupReady || !fcLastLookupJson) return;
+  const dialog = document.getElementById('fc-lookup-json-dialog');
+  const jsonOutput = document.getElementById('fc-lookup-json');
+  if (!dialog || !jsonOutput || typeof dialog.showModal !== 'function') {
+    showToast('⚠ Este navegador no permite abrir el visor JSON');
+    return;
+  }
+  jsonOutput.textContent = JSON.stringify(fcLastLookupJson, null, 2);
+  dialog.showModal();
+});
+
+document.getElementById('fc-lookup-json-close')?.addEventListener('click', () => {
+  document.getElementById('fc-lookup-json-dialog')?.close();
+});
+
+function fcLookupErrorMessage(error) {
+  const message = String(error?.message || '');
+  if (/remote_error_(401|403)\b/.test(message)) {
+    return 'La API rechazó el token; verifica que coincida con API_TOKEN';
+  }
+  if (/remote_error_429\b|rate_limit_exceeded/.test(message)) {
+    return 'Se alcanzó el límite de búsquedas; espera un minuto antes de volver a intentar';
+  }
+  if (/ips_authentication_failed/.test(message)) {
+    return 'IPS rechazó las credenciales configuradas en el servidor';
+  }
+  if (/remote_error_503\b|ips_temporarily_unavailable/.test(message)) {
+    return 'IPS está temporalmente no disponible; inténtalo más tarde';
+  }
+  if (/remote_error_502\b|ips_response_error/.test(message)) {
+    return 'IPS devolvió una respuesta inesperada o incompleta; no se pudo confirmar la búsqueda';
+  }
+  return 'No se pudo completar la búsqueda en IPS';
+}
+
+function fcApplyLookupRecord(record, source, cedula) {
+  const person = source === 'ips' ? (record?.cotizante || {}) : record;
+  const employer = source === 'ips'
+    ? (record?.ultimo_empleador || record?.empleadores?.find(item => item.activo) || {})
+    : {};
+  const additions = {
+    'fc-nombres': fcLookupText(record?.['fc-nombres'], record?.nombres, person?.nombre),
+    'fc-apellidos': fcLookupText(record?.['fc-apellidos'], record?.apellidos, person?.apellido),
+    'fc-cedula': fcLookupText(record?.['fc-cedula'], record?.cedula, person?.documento, cedula),
+    'fc-fechanac': formatStructuredBirthDate(fcLookupText(
+      record?.['fc-fechanac'], record?.fecha_nacimiento, person?.fecha_nacimiento
+    )),
+    'fc-cecot': fcLookupText(record?.['fc-cecot'], person?.cecot, person?.ide_asecot),
+    'fc-empresa': fcLookupText(record?.['fc-empresa'], record?.entidad, employer?.nombre),
+    'fc-cargo': fcLookupText(record?.['fc-cargo'], record?.nombre_laboral),
+    'fc-salario': fcLookupText(record?.['fc-salario'], record?.ingreso_ultimo_mes),
+    'fc-idempleador': fcLookupText(
+      employer?.ide_empleador_numerico, employer?.ide_empleador_id
+    )
+  };
+  const data = formRead();
+  let filled = 0;
+
+  Object.entries(additions).forEach(([id, value]) => {
+    if (value && !String(data[id] || '').trim()) {
+      data[id] = value;
+      filled += 1;
+    }
+  });
+
+  formWrite(data);
+  if (String(data['fc-cecot'] || '').trim() && String(data['fc-idempleador'] || '').trim()) {
+    generateIpsUrl(true);
+  }
+  try { updateAgeInfo(); } catch (error) {
+    console.warn('[FC] No se pudo actualizar la edad tras la búsqueda:', error);
+  }
+  fcSaveData();
+  return filled;
+}
+
+async function fcSearchByCedula(cedula) {
+  if (fcLookupInFlightCedula === cedula) return;
+  const requestId = ++fcLookupRequestId;
+  const remoteRevision = window.RemoteSync?.getConfigRevision?.();
+  fcLookupInFlightCedula = cedula;
+  const isCurrent = () => (
+    fcLookupCedulaIsCurrent(requestId, cedula)
+    && window.RemoteSync?.getConfigRevision?.() === remoteRevision
+  );
+  fcClearLookupJson();
+  const searchButton = document.getElementById('fc-search-cedula');
+  if (searchButton) searchButton.disabled = true;
+
+  try {
+    const remote = window.RemoteSync;
+    const config = remote?.loadConfig?.();
+    if (!fcLookupConfigIsReady(remote, config)) {
+      fcSetRemoteLookupAvailability(false);
+      if (isCurrent()) {
+        showToast('⚠ Configura host/IP, puerto, token y habilita Remote Sync', 5000);
+      }
+      return;
+    }
+
+    if (!fcRemoteLookupReady || !fcRemoteLookupPingIsFresh(config)) {
+      const ready = await fcRefreshRemoteLookupAvailability();
+      if (!isCurrent()) return;
+      if (!ready) {
+        showToast('⚠ No se recibió PONG; verifica la conexión de Remote Sync', 5000);
+        return;
+      }
+    }
+    if (!fcRemoteLookupReady) {
+      showToast('⚠ No se recibió PONG; verifica la conexión de Remote Sync', 5000);
+      return;
+    }
+
+    let funcionarios = [];
+    let funcionariosError = null;
+    showToast('Buscando primero en nómina de funcionarios…', 10000);
+    try {
+      if (typeof remote.searchFuncionario !== 'function') {
+        throw new Error('funcionarios_search_unavailable');
+      }
+      funcionarios = await remote.searchFuncionario(cedula);
+      if (!Array.isArray(funcionarios)) throw new Error('invalid_funcionarios_response');
+    } catch (error) {
+      funcionariosError = error;
+      console.error('[FC] Error buscando en nómina de funcionarios:', error);
+    }
+
+    if (!isCurrent()) return;
+    if (funcionarios.length) {
+      fcShowLookupJson(funcionarios[0], 'funcionarios', cedula);
+      const filled = fcApplyLookupRecord(funcionarios[0], 'funcionarios', cedula);
+      showToast(
+        filled
+          ? '✓ Encontrado en nómina de funcionarios; datos completados'
+          : '✓ Encontrado en nómina de funcionarios',
+        5000
+      );
+      return;
+    }
+
+    showToast(
+      funcionariosError
+        ? 'No se pudo verificar la nómina; buscando en IPS…'
+        : 'No se encontró en nómina; buscando en IPS…',
+      10000
+    );
+
+    let ipsRecords;
+    try {
+      if (typeof remote.searchByCedula !== 'function') {
+        throw new Error('ips_search_unavailable');
+      }
+      ipsRecords = await remote.searchByCedula(cedula);
+      if (!Array.isArray(ipsRecords)) throw new Error('invalid_ips_response');
+    } catch (error) {
+      console.error('[FC] Error buscando en IPS:', error);
+      if (isCurrent()) {
+        showToast(`⚠ ${fcLookupErrorMessage(error)}`, 5000);
+      }
+      return;
+    }
+
+    if (!isCurrent()) return;
+    if (ipsRecords.length) {
+      fcShowLookupJson(ipsRecords[0], 'ips', cedula);
+      const filled = fcApplyLookupRecord(ipsRecords[0], 'ips', cedula);
+      showToast(
+        funcionariosError
+          ? 'Encontrado en IPS; no se pudo verificar la nómina'
+          : 'No se encontró en nómina; coincidencia encontrada en IPS',
+        5000
+      );
+      if (!filled) console.info('[FC] La coincidencia no agregó campos porque ya estaban completos.');
+      return;
+    }
+
+    showToast(
+      funcionariosError
+        ? 'Sin resultados en IPS; no se pudo verificar la nómina'
+        : 'No se encontraron resultados en nómina ni en IPS',
+      5000
+    );
+  } finally {
+    if (requestId === fcLookupRequestId && fcLookupInFlightCedula === cedula) {
+      fcLookupInFlightCedula = '';
+      if (searchButton) searchButton.disabled = !fcRemoteLookupReady;
+    }
+  }
+}
+
+cedEl?.addEventListener('blur', async () => {
+  const rawCedula = String(cedEl.value || '').trim();
+  const ci = rawCedula.replace(/[.\s-]/g, '');
   if (!ci) return;
+  if (!/^[0-9]+$/.test(ci) || ci.length > 12) {
+    showToast('⚠ La cédula debe tener entre 5 y 12 dígitos', 4000);
+    return;
+  }
+  if (ci.length < 5) return;
+
   const clients = clientsLoad();
-  const found = clients.find(c => (c.cedula || '') === ci);
+  const normalizeCi = value => String(value || '').replace(/\D/g, '');
+  const active = clients.find(client => client.id === fc_activeClientId);
+  if (
+    active
+    && fcHasClientDetails(active)
+    && normalizeCi(active.cedula || active['fc-cedula']) === ci
+  ) return;
+
+  const found = clients.find(c =>
+    c.id !== fc_activeClientId
+    && fcHasClientDetails(c)
+    && normalizeCi(c.cedula || c['fc-cedula']) === ci
+  );
   if (found) {
     
     formClear();
@@ -554,10 +916,13 @@ cedEl?.addEventListener('blur', () => {
     fc_activeClientId = found.id;
     uiSetActiveClient(found.id, found.displayName);
     fcResetUndoHistory();
-    cedEl.classList.add('fc-dup-error');
-    cedEl.blur();
-    showToast('⚠ Cédula ya existe — cargando datos guardados');
+    cedEl.classList.remove('fc-dup-error');
+    showToast('✓ Cliente guardado cargado; verificando datos en el servidor…', 5000);
+    await fcSearchByCedula(ci);
+    return;
   }
+
+  await fcSearchByCedula(ci);
 });
 
 
@@ -1432,13 +1797,24 @@ function generateIpsUrl(silent) {
   const openBtn = document.getElementById('fc-openurl');
   const copyBtn = document.getElementById('fc-copyurl');
   if (!cecot || !ide) { if (!silent) showToast('⚠ Completá CECOT e ID Empleador'); return; }
+  if (!/^[0-9]+$/.test(ide)) {
+    if (!silent) showToast('⚠ El ID Empleador debe ser numérico');
+    return;
+  }
   
   let cfg = {};
   try { cfg = JSON.parse(localStorage.getItem(FC_IPS_CONFIG) || '{}'); } catch(e) { cfg = {}; }
   const codPeriod = cfg.cod_period || '1002,1001,1000';
+  const url = new URL('https://servicios.ips.gov.py/miips/inf_tarjetita_pdf.php');
+  url.search = new URLSearchParams({
+    ide_emplea: ide,
+    cod_period: codPeriod,
+    ide_asecot: cecot,
+    order: ''
+  }).toString();
   
-  if (urlOut)  urlOut.value = url;
-  if (openBtn) { openBtn.href = url; openBtn.style.display = 'inline-flex'; }
+  if (urlOut)  urlOut.value = url.toString();
+  if (openBtn) { openBtn.href = url.toString(); openBtn.style.display = 'inline-flex'; }
   if (copyBtn) copyBtn.style.display = 'inline-flex';
   if (!silent) showToast('✓ URL generada');
   fcSaveData();
@@ -1597,7 +1973,7 @@ function fcSaveData() {
 
 function fcScheduleClientAutoSave() {
   clearTimeout(fc_autoSaveTimer);
-  if (!fcHasMeaningfulData()) return;
+  if (!fcCanAutoSaveClient()) return;
 
   fc_autoSaveTimer = setTimeout(() => {
     fc_autoSaveTimer = null;
@@ -1610,7 +1986,7 @@ function fcScheduleClientAutoSave() {
 function fcFlushAutoSave() {
   clearTimeout(fc_autoSaveTimer);
   fc_autoSaveTimer = null;
-  if (fcHasMeaningfulData()) saveCurrentClient({ silent: true });
+  if (fcCanAutoSaveClient()) saveCurrentClient({ silent: true });
 }
 function fcLoadDraft() {
   try {
@@ -1747,7 +2123,7 @@ window.addEventListener('beforeunload', e => {
     formClear();
 
     const est = document.getElementById('fc-estadocivil');
-    if (est) est.value = 'Soltero';
+    if (est) est.value = 'Soltero/a';
 
     uiSetActiveClient(null, null);
     if (panel) panel.style.display = 'none';
@@ -1897,7 +2273,9 @@ window.addEventListener('beforeunload', e => {
   
   try {
     const est = document.getElementById('fc-estadocivil');
-    if (est && (!est.value || est.value.trim() === '')) est.value = 'Soltero';
+    if (est && (!est.value || est.value.trim() === '' || est.value === 'Soltero')) {
+      est.value = 'Soltero/a';
+    }
   } catch(e){}
 
   

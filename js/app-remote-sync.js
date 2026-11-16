@@ -157,10 +157,10 @@ function normalizeIdentity(value) {
 }
 
 function clientsMatch(first, second) {
-  if (first?.id && second?.id && String(first.id) === String(second.id)) return true;
   const firstCedula = normalizeIdentity(getClientField(first, 'cedula'));
   const secondCedula = normalizeIdentity(getClientField(second, 'cedula'));
-  if (firstCedula && secondCedula && firstCedula === secondCedula) return true;
+  if (firstCedula && secondCedula) return firstCedula === secondCedula;
+  if (first?.id && second?.id && String(first.id) === String(second.id)) return true;
   const firstCecot = normalizeIdentity(getClientField(first, 'cecot'));
   const secondCecot = normalizeIdentity(getClientField(second, 'cecot'));
   const firstEmployer = normalizeIdentity(getClientField(first, 'idempleador'));
@@ -186,6 +186,31 @@ function mergeClientRecords(first, second, preferredId = '') {
   return normalizeRemoteClient(merged);
 }
 
+function makeClientIdsUnique(clients) {
+  const usedIds = new Set();
+  clients.forEach(client => {
+    const currentId = String(client.id || client.clientId || '');
+    if (!currentId || !usedIds.has(currentId)) {
+      if (currentId) usedIds.add(currentId);
+      return;
+    }
+
+    const idPrefix = `local_${Date.now().toString(36)}`;
+    let suffix = 1;
+    let replacementId;
+    do {
+      replacementId = `${idPrefix}_${suffix}`;
+      suffix += 1;
+    } while (usedIds.has(replacementId));
+
+    client.id = replacementId;
+    if (client.clientId) client.clientId = replacementId;
+    client._remoteSynced = false;
+    usedIds.add(replacementId);
+  });
+  return clients;
+}
+
 function mergeClientLists(localClients, remoteClients) {
   const merged = [];
   [...localClients, ...remoteClients].forEach(record => {
@@ -198,7 +223,7 @@ function mergeClientLists(localClients, remoteClients) {
       merged[existingIndex] = mergeClientRecords(current, record, current.id || record.id || '');
     }
   });
-  return merged;
+  return makeClientIdsUnique(merged);
 }
 
 function loadLocalClients() {
@@ -336,10 +361,14 @@ function syncResponseResults(response, expectedCount) {
 
 function markSyncedClients(clients, results) {
   results.forEach(result => {
-    const matched = clients.find(client =>
-      (result.id && String(client.id || client.clientId || '') === String(result.id))
-      || (result.cedula && normalizeIdentity(getClientField(client, 'cedula')) === normalizeIdentity(result.cedula))
-    );
+    const resultCedula = normalizeIdentity(result.cedula);
+    const matched = (resultCedula && clients.find(client =>
+      normalizeIdentity(getClientField(client, 'cedula')) === resultCedula
+    )) || clients.find(client => {
+      if (!result.id || String(client.id || client.clientId || '') !== String(result.id)) return false;
+      const clientCedula = normalizeIdentity(getClientField(client, 'cedula'));
+      return !resultCedula || !clientCedula || clientCedula === resultCedula;
+    });
     if (matched) matched._remoteSynced = true;
   });
 }
@@ -418,6 +447,7 @@ async function remoteSendClient(client) {
   }
   if (clientId) remoteSendingClientIds.add(clientId);
 
+  let sendSucceeded = false;
   try {
     const outgoing = normalizeRemoteClient(client);
     const saveAllPath = (cfg.endpoints && cfg.endpoints.saveAll) || '/save-all';
@@ -430,6 +460,7 @@ async function remoteSendClient(client) {
     const updated = mergeClientLists(local, [outgoing]);
     markSyncedClients(updated, results);
     saveLocalClients(updated);
+    sendSucceeded = true;
     return true;
   } catch (error) {
     console.error('[RemoteSync] Error enviando cliente:', error);
@@ -441,7 +472,7 @@ async function remoteSendClient(client) {
       const pendingClient = remotePendingClients.get(clientId);
       if (pendingClient) {
         remotePendingClients.delete(clientId);
-        setTimeout(() => remoteSendClient(pendingClient), 0);
+        if (sendSucceeded) setTimeout(() => remoteSendClient(pendingClient), 0);
       }
     }
   }

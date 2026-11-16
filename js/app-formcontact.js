@@ -571,10 +571,17 @@ let fcLookupInFlightCedula = '';
 let fcLookupAvailabilityRequestId = 0;
 let fcRemoteLookupReady = false;
 let fcLastLookupJson = null;
+const fcPositiveIpsResults = new Map();
 
 cedEl?.addEventListener('input', () => {
   cedEl.value = cedEl.value.replace(/[.\s]/g, '');
   cedEl.classList.remove('fc-dup-error');
+  if (
+    fcLastLookupJson
+    && fcNormalizeLookupCedula(cedEl.value) !== fcLastLookupJson.cedula
+  ) {
+    fcClearLookupJson();
+  }
 });
 
 function fcLookupCedulaIsCurrent(requestId, cedula) {
@@ -589,6 +596,53 @@ function fcLookupText(...values) {
     }
   }
   return '';
+}
+
+function fcNormalizeLookupCedula(value) {
+  return String(value || '').trim().replace(/[.\s-]/g, '');
+}
+
+function fcLookupRecordMatchesCedula(record, source, cedula) {
+  const person = source === 'ips' ? record?.cotizante : record;
+  const returnedCedula = fcLookupText(
+    source === 'ips' ? person?.documento : '',
+    record?.['fc-cedula'],
+    record?.cedula,
+    record?.ci,
+    record?.documento,
+    person?.cedula
+  ).replace(/\D/g, '');
+  return Boolean(returnedCedula && returnedCedula === cedula);
+}
+
+function fcGetCachedIpsRecords(cedula) {
+  const records = fcPositiveIpsResults.get(cedula);
+  if (!records) return null;
+
+  const matching = records.filter(record =>
+    fcLookupRecordMatchesCedula(record, 'ips', cedula)
+  );
+  if (!matching.length) {
+    fcPositiveIpsResults.delete(cedula);
+    return null;
+  }
+  fcPositiveIpsResults.delete(cedula);
+  fcPositiveIpsResults.set(cedula, matching);
+  return matching;
+}
+
+function fcCachePositiveIpsRecords(cedula, records) {
+  const matching = records.filter(record =>
+    fcLookupRecordMatchesCedula(record, 'ips', cedula)
+  );
+  if (!matching.length) return [];
+
+  const cached = JSON.parse(JSON.stringify(matching));
+  fcPositiveIpsResults.set(cedula, cached);
+  while (fcPositiveIpsResults.size > 200) {
+    fcPositiveIpsResults.delete(fcPositiveIpsResults.keys().next().value);
+  }
+  return cached;
 }
 
 function fcLookupConfigIsReady(remote, config) {
@@ -656,6 +710,7 @@ async function fcRefreshRemoteLookupAvailability() {
 }
 
 window.addEventListener('tufi:remote-config-changed', event => {
+  fcPositiveIpsResults.clear();
   if (event.detail?.pingPending === true) {
     fcSetRemoteLookupAvailability(false);
     return;
@@ -680,9 +735,15 @@ function fcRemoteLookupPingIsFresh(config) {
 }
 
 function fcShowLookupJson(record, source, cedula) {
+  if (!fcLookupRecordMatchesCedula(record, source, cedula)) {
+    console.error('[FC] Se descartó un resultado cuya cédula no coincide con la búsqueda.');
+    fcClearLookupJson();
+    return false;
+  }
   fcLastLookupJson = { source, cedula, result: record };
   const viewButton = document.getElementById('fc-view-lookup');
   if (viewButton && fcRemoteLookupReady) viewButton.hidden = false;
+  return true;
 }
 
 document.getElementById('fc-search-cedula')?.addEventListener('click', async () => {
@@ -696,6 +757,19 @@ document.getElementById('fc-search-cedula')?.addEventListener('click', async () 
 
 document.getElementById('fc-view-lookup')?.addEventListener('click', () => {
   if (!fcRemoteLookupReady || !fcLastLookupJson) return;
+  const currentCedula = fcNormalizeLookupCedula(cedEl?.value);
+  if (
+    currentCedula !== fcLastLookupJson.cedula
+    || !fcLookupRecordMatchesCedula(
+      fcLastLookupJson.result,
+      fcLastLookupJson.source,
+      currentCedula
+    )
+  ) {
+    fcClearLookupJson();
+    showToast('⚠ El resultado no corresponde a la cédula actual; vuelve a buscar', 5000);
+    return;
+  }
   const dialog = document.getElementById('fc-lookup-json-dialog');
   const jsonOutput = document.getElementById('fc-lookup-json');
   if (!dialog || !jsonOutput || typeof dialog.showModal !== 'function') {
@@ -817,6 +891,13 @@ async function fcSearchByCedula(cedula) {
       }
       funcionarios = await remote.searchFuncionario(cedula);
       if (!Array.isArray(funcionarios)) throw new Error('invalid_funcionarios_response');
+      const matchingFuncionarios = funcionarios.filter(record =>
+        fcLookupRecordMatchesCedula(record, 'funcionarios', cedula)
+      );
+      if (funcionarios.length && !matchingFuncionarios.length) {
+        throw new Error('funcionario_cedula_mismatch');
+      }
+      funcionarios = matchingFuncionarios;
     } catch (error) {
       funcionariosError = error;
       console.error('[FC] Error buscando en nómina de funcionarios:', error);
@@ -824,7 +905,10 @@ async function fcSearchByCedula(cedula) {
 
     if (!isCurrent()) return;
     if (funcionarios.length) {
-      fcShowLookupJson(funcionarios[0], 'funcionarios', cedula);
+      if (!fcShowLookupJson(funcionarios[0], 'funcionarios', cedula)) {
+        showToast('⚠ Nómina devolvió datos que no coinciden con la cédula', 5000);
+        return;
+      }
       const filled = fcApplyLookupRecord(funcionarios[0], 'funcionarios', cedula);
       showToast(
         filled
@@ -835,31 +919,49 @@ async function fcSearchByCedula(cedula) {
       return;
     }
 
-    showToast(
-      funcionariosError
-        ? 'No se pudo verificar la nómina; buscando en IPS…'
-        : 'No se encontró en nómina; buscando en IPS…',
-      10000
-    );
+    let ipsRecords = fcGetCachedIpsRecords(cedula);
+    if (ipsRecords === null) {
+      showToast(
+        funcionariosError
+          ? 'No se pudo verificar la nómina; consultando IPS…'
+          : 'No se encontró en nómina; consultando IPS…',
+        10000
+      );
 
-    let ipsRecords;
-    try {
-      if (typeof remote.searchByCedula !== 'function') {
-        throw new Error('ips_search_unavailable');
+      try {
+        if (typeof remote.searchByCedula !== 'function') {
+          throw new Error('ips_search_unavailable');
+        }
+        const fetchedIpsRecords = await remote.searchByCedula(cedula);
+        if (!Array.isArray(fetchedIpsRecords)) throw new Error('invalid_ips_response');
+        if (!isCurrent()) return;
+
+        const matchingIpsRecords = fetchedIpsRecords.filter(record =>
+          fcLookupRecordMatchesCedula(record, 'ips', cedula)
+        );
+        if (fetchedIpsRecords.length && !matchingIpsRecords.length) {
+          console.error('[FC] IPS devolvió resultados que no coinciden con la cédula solicitada.');
+          showToast('⚠ IPS devolvió datos que no coinciden con la cédula; no se aplicaron', 5000);
+          return;
+        }
+        ipsRecords = fcCachePositiveIpsRecords(cedula, matchingIpsRecords);
+      } catch (error) {
+        console.error('[FC] Error buscando en IPS:', error);
+        if (isCurrent()) {
+          showToast(`⚠ ${fcLookupErrorMessage(error)}`, 5000);
+        }
+        return;
       }
-      ipsRecords = await remote.searchByCedula(cedula);
-      if (!Array.isArray(ipsRecords)) throw new Error('invalid_ips_response');
-    } catch (error) {
-      console.error('[FC] Error buscando en IPS:', error);
-      if (isCurrent()) {
-        showToast(`⚠ ${fcLookupErrorMessage(error)}`, 5000);
-      }
-      return;
+    } else {
+      showToast('No se encontró en nómina; usando datos IPS validados previamente…', 5000);
     }
 
     if (!isCurrent()) return;
     if (ipsRecords.length) {
-      fcShowLookupJson(ipsRecords[0], 'ips', cedula);
+      if (!fcShowLookupJson(ipsRecords[0], 'ips', cedula)) {
+        showToast('⚠ El resultado IPS no corresponde a la cédula actual; no se aplicó', 5000);
+        return;
+      }
       const filled = fcApplyLookupRecord(ipsRecords[0], 'ips', cedula);
       showToast(
         funcionariosError

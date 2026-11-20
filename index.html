@@ -394,6 +394,10 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           Guardar
         </button>
+        <button class="btn btn-secondary" id="fc-sync-client" type="button" title="Enviar este cliente al servidor" hidden>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          Sync
+        </button>
         <button class="btn btn-secondary" id="fc-copy" type="button">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
           Copiar
@@ -484,6 +488,10 @@
       <div class="field">
         <label for="cs-next-age">Cumplirá en su próximo cumpleaños</label>
         <input type="number" id="cs-next-age" min="0" max="120" placeholder="Ej. 20">
+      </div>
+      <div class="field search-limit-field">
+        <label for="cs-limit">Máx. resultados</label>
+        <input type="number" id="cs-limit" min="1" max="1000" step="10" value="30">
       </div>
       <button class="btn btn-ghost search-clear-btn" id="cs-clear" type="button">Limpiar filtros</button>
     </div>
@@ -602,6 +610,9 @@
                 <label style="display:flex;gap:6px;align-items:center;margin-left:auto"><input id="rs-enabled" type="checkbox"> Enabled</label>
               </div>
               <div style="margin-bottom:8px">
+                <label style="display:flex;gap:6px;align-items:center"><input id="rs-autolookup" type="checkbox"> Al escribir una cédula, buscar automáticamente (local → nómina → IPS)</label>
+              </div>
+              <div style="margin-bottom:8px">
                 <input id="rs-token" type="password" autocomplete="off" placeholder="Token" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px">
               </div>
             </div>
@@ -625,6 +636,12 @@
                 <button id="rs-close" class="btn btn-ghost">Cerrar</button>
               </div>
             </div>
+          </div>
+          <div class="rs-status" id="rs-status" aria-live="polite"></div>
+          <div class="rs-rejected" id="rs-rejected-wrap">
+            <h4 class="rs-rejected-title">Clientes con datos incorrectos (<span id="rs-rejected-count">0</span>)</h4>
+            <p class="rs-rejected-hint">El servidor no los aceptó. Ábrelos para corregirlos y vuelve a sincronizar, o elimínalos.</p>
+            <div class="rs-rejected-list" id="rs-rejected-list"></div>
           </div>
         </div>
       </div>
@@ -1336,6 +1353,7 @@
 <script src="js/sweet-alert.js"></script>
 <script src="js/app-core.js"></script>
 <script src="js/app-geo.js"></script>
+<script src="js/app-client-store.js"></script>
 <script src="js/app-formcontact.js"></script>
 <script src="js/app-formcontact-export.js"></script>
 <script src="js/app-client-search.js"></script>

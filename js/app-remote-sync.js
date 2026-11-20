@@ -5,11 +5,14 @@
 'use strict';
 
 const REMOTE_CONFIG_KEY = 'tufi_remote_config_v1';
-const REMOTE_CLIENTS_KEY = 'tufi_clients_v3';
+const REMOTE_CLIENTS_KEY = 'tufi_clients_v3'; // sólo si TufiFormContact no está disponible
+const REMOTE_SYNC_CHUNK = 200;               // clientes por petición (servidor admite 1000)
 let remoteApplyingServerChanges = false;
 let remoteConfigRevision = 0;
-const remoteSendingClientIds = new Set();
-const remotePendingClients = new Map();
+// Cola de envío en segundo plano: id -> cliente. Se procesa por lotes sin bloquear la UI.
+const remoteQueue = new Map();
+let remoteQueueRunning = false;
+let remoteBulkRunning = false;
 
 const CLIENT_FIELD_ALIASES = {
   nombres: ['nombre', 'firstName', 'first_name'],
@@ -22,7 +25,7 @@ const CLIENT_FIELD_ALIASES = {
   cecot: ['ips'],
   idempleador: ['id_empleador', 'employerId', 'employer_id']
 };
-const CLIENT_INTERNAL_FIELDS = new Set(['_remoteSynced', '_remoteDeleted', '_deleted', '_searchDraft', '_activeClientId']);
+const CLIENT_INTERNAL_FIELDS = new Set(['_remoteSynced', '_remoteDeleted', '_deleted', '_searchDraft', '_activeClientId', '_syncError']);
 
 function remoteLoadConfig() {
   try { return JSON.parse(localStorage.getItem(REMOTE_CONFIG_KEY) || '{}'); }
@@ -63,7 +66,7 @@ async function testPing({ allowDisabled = false } = {}) {
   const pingPath = (cfg.endpoints && cfg.endpoints.ping) || '/ping';
   const url = base + pingPath;
   try {
-    const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${cfg.token || ''}` } });
+    const res = await fetchWithTimeout(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${cfg.token || ''}` } }, 8000);
     if (!res.ok) return false;
     const text = await res.text();
     if (!text) return false;
@@ -75,18 +78,64 @@ async function testPing({ allowDisabled = false } = {}) {
   } catch (e) { return false; }
 }
 
-async function sendJson(path, payload) {
+const REMOTE_TIMEOUT_MS = { sync: 45000, search: 100000, default: 20000 };
+
+/** fetch con timeout: una conexión colgada ya no bloquea la cola para siempre. */
+async function fetchWithTimeout(url, options = {}, timeoutMs = REMOTE_TIMEOUT_MS.default) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('remote_timeout');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function sendJson(path, payload, timeoutMs = REMOTE_TIMEOUT_MS.sync) {
   const cfg = remoteLoadConfig();
   const base = buildBaseUrl(cfg);
   if (!base) throw new Error('remote_not_configured');
   const url = base + (path.startsWith('/') ? path : `/${path}`);
   const headers = { 'Content-Type': 'application/json' };
   if (cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
-  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+  const res = await fetchWithTimeout(url, { method: 'POST', headers, body: JSON.stringify(payload) }, timeoutMs);
   const text = await res.text();
-  if (!res.ok) throw new Error('remote_error_' + res.status + (text ? `: ${text}` : ''));
+  if (!res.ok) {
+    const error = new Error('remote_error_' + res.status + (text ? `: ${text}` : ''));
+    error.status = res.status;
+    error.retryAfter = Number(res.headers.get('Retry-After')) || null;
+    throw error;
+  }
   if (!text) return null;
   try { return JSON.parse(text); } catch { return text; }
+}
+
+/** Errores transitorios (red, timeout, 429, 502/503/504) que conviene reintentar. */
+function isRetryableError(error) {
+  if (!error) return false;
+  if (error.status) return [408, 425, 429, 502, 503, 504].includes(error.status);
+  return /remote_timeout|Failed to fetch|NetworkError|network|load failed/i.test(String(error.message || error));
+}
+
+/** Reintenta con espera exponencial + aleatoria (evita que 10 navegadores reintenten a la vez). */
+async function withRetry(task, { attempts = 4, baseMs = 1500, onRetry } = {}) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts - 1 || !isRetryableError(error)) break;
+      const serverHint = error.retryAfter ? error.retryAfter * 1000 : 0;
+      const wait = Math.max(serverHint, baseMs * 2 ** attempt) + Math.random() * 1000;
+      if (onRetry) onRetry(attempt + 1, Math.round(wait / 1000), error);
+      await new Promise(resolve => setTimeout(resolve, wait));
+    }
+  }
+  throw lastError;
 }
 
 function getClientField(client, field) {
@@ -118,6 +167,8 @@ function clientToApiPayload(client) {
   delete payload._remoteSynced;
   delete payload._remoteDeleted;
   delete payload._searchDraft;
+  delete payload._syncError;
+  delete payload._activeClientId;
   return payload;
 }
 
@@ -145,8 +196,10 @@ function countFilled(client) {
 function clientContentSignature(client) {
   const normalized = normalizeRemoteClient(client);
   const fields = Object.keys(normalized)
+    // id/clientId/displayName no son contenido: el mismo cliente creado en dos equipos
+    // tiene ids distintos y antes quedaba «pendiente» para siempre.
     .filter(key => !CLIENT_INTERNAL_FIELDS.has(key)
-      && !['savedAt', 'created_at', 'updated_at'].includes(key))
+      && !['savedAt', 'created_at', 'updated_at', 'id', 'clientId', 'displayName'].includes(key))
     .sort()
     .map(key => [key, normalized[key]]);
   return JSON.stringify(fields);
@@ -211,16 +264,35 @@ function makeClientIdsUnique(clients) {
   return clients;
 }
 
+// Claves de identidad equivalentes a clientsMatch(), para indexar en O(1).
+// Un registro con cédula sólo coincide por cédula; uno sin cédula puede coincidir por id
+// (también con registros que sí tienen cédula), igual que clientsMatch().
+function clientMatchKeys(client, forIndex = false) {
+  const cedula = normalizeIdentity(getClientField(client, 'cedula'));
+  if (cedula) return forIndex && client?.id ? [`ci:${cedula}`, `id:${client.id}`] : [`ci:${cedula}`];
+  const keys = [];
+  if (client?.id) keys.push(`id:${client.id}`);
+  const cecot = normalizeIdentity(getClientField(client, 'cecot'));
+  const employer = normalizeIdentity(getClientField(client, 'idempleador'));
+  if (cecot && employer) keys.push(`ips:${cecot}|${employer}`);
+  return keys;
+}
+
+// Antes usaba findIndex por cada registro (O(n²)): con 3.000 clientes congelaba la página.
 function mergeClientLists(localClients, remoteClients) {
   const merged = [];
+  const index = new Map();
   [...localClients, ...remoteClients].forEach(record => {
     if (!record || typeof record !== 'object' || Array.isArray(record)) return;
-    const existingIndex = merged.findIndex(existing => clientsMatch(existing, record));
-    if (existingIndex < 0) {
+    const keys = clientMatchKeys(record);
+    const position = keys.map(key => index.get(key)).find(value => value !== undefined);
+    if (position === undefined) {
       merged.push(normalizeRemoteClient(record));
+      clientMatchKeys(record, true).forEach(key => { if (!index.has(key)) index.set(key, merged.length - 1); });
     } else {
-      const current = merged[existingIndex];
-      merged[existingIndex] = mergeClientRecords(current, record, current.id || record.id || '');
+      const current = merged[position];
+      merged[position] = mergeClientRecords(current, record, current.id || record.id || '');
+      clientMatchKeys(merged[position], true).forEach(key => { if (!index.has(key)) index.set(key, position); });
     }
   });
   return makeClientIdsUnique(merged);
@@ -283,7 +355,8 @@ async function fetchJson(path, query = {}) {
   const base = buildBaseUrl(cfg);
   if (!base) throw new Error('remote_not_configured');
   const url = buildEndpointUrl(path, query);
-  const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${cfg.token || ''}` } });
+  const timeout = /\/search(\?|$)/.test(url.replace(/^https?:\/\/[^/]+/, '')) ? REMOTE_TIMEOUT_MS.search : REMOTE_TIMEOUT_MS.sync;
+  const res = await fetchWithTimeout(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${cfg.token || ''}` } }, timeout);
   const text = await res.text();
   if (!res.ok) throw new Error('remote_error_' + res.status + (text ? `: ${text}` : ''));
   if (!text) return null;
@@ -295,7 +368,7 @@ async function fetchPublicJson(path) {
   const base = buildBaseUrl(cfg);
   if (!base) throw new Error('remote_not_configured');
   const endpoint = path.startsWith('/') ? path : `/${path}`;
-  const res = await fetch(base + endpoint, { method: 'GET', headers: { 'Accept': 'application/json' } });
+  const res = await fetchWithTimeout(base + endpoint, { method: 'GET', headers: { 'Accept': 'application/json' } });
   const text = await res.text();
   if (!res.ok) throw new Error('remote_error_' + res.status);
   if (!text) return null;
@@ -348,29 +421,169 @@ async function remoteSearchFuncionario(cedula) {
   return employee && typeof employee === 'object' ? [employee] : [];
 }
 
+const SYNC_OK_STATUSES = new Set(['created', 'updated', 'unchanged', 'discarded']);
+const SYNC_ERROR_LABELS = {
+  invalid_cedula: 'Cédula inválida (debe tener entre 5 y 12 dígitos)',
+  client_identity_required: 'Sin cédula ni identificador',
+  invalid_client: 'Registro vacío o con formato inválido',
+  invalid_client_id: 'Identificador local inválido',
+  client_too_large: 'El registro es demasiado grande',
+  client_field_too_large: 'Un campo es demasiado largo'
+};
+
+function syncErrorLabel(code) {
+  return SYNC_ERROR_LABELS[code] || String(code || 'Datos incorrectos');
+}
+
 function syncResponseResults(response, expectedCount) {
   if (!response || !Array.isArray(response.results) || response.results.length !== expectedCount) {
     throw new Error('remote_invalid_sync_response');
   }
-  const allowed = new Set(['created', 'updated', 'unchanged']);
-  if (response.results.some(item => !item || !allowed.has(item.status))) {
+  if (response.results.some(item => !item || !(SYNC_OK_STATUSES.has(item.status) || item.status === 'rejected'))) {
     throw new Error('remote_invalid_sync_response');
   }
   return response.results;
 }
 
-function markSyncedClients(clients, results) {
-  results.forEach(result => {
-    const resultCedula = normalizeIdentity(result.cedula);
-    const matched = (resultCedula && clients.find(client =>
-      normalizeIdentity(getClientField(client, 'cedula')) === resultCedula
-    )) || clients.find(client => {
-      if (!result.id || String(client.id || client.clientId || '') !== String(result.id)) return false;
-      const clientCedula = normalizeIdentity(getClientField(client, 'cedula'));
-      return !resultCedula || !clientCedula || clientCedula === resultCedula;
-    });
-    if (matched) matched._remoteSynced = true;
+function yieldToBrowser() {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function clientKey(client) {
+  return String(client?.id || client?.clientId || '');
+}
+
+/**
+ * Aplica el resultado del servidor a los clientes locales en una sola escritura.
+ * sent: [{ id, savedAt }] en el mismo orden que el lote enviado.
+ * Si el cliente se editó mientras viajaba la petición (savedAt distinto), queda pendiente.
+ */
+function applySyncResults(sent, results) {
+  const local = loadLocalClients();
+  const positions = new Map(local.map((client, index) => [clientKey(client), index]));
+  const activeId = window.TufiFormContact?.getActiveClientId?.() || null;
+  const summary = { ok: 0, rejected: 0, errors: [] };
+  let changed = false;
+
+  results.forEach((result, order) => {
+    const sentIndex = Number.isInteger(result.index) ? result.index : order;
+    const sentRecord = sent[sentIndex];
+    if (!sentRecord || !sentRecord.id) return;
+    const position = positions.get(sentRecord.id);
+    if (position === undefined) return;
+    const current = local[position];
+    if (String(current.savedAt || '') !== sentRecord.savedAt) return;
+
+    if (result.status === 'rejected') {
+      const error = String(result.error || 'invalid_client');
+      local[position] = { ...current, _remoteSynced: false, _syncError: { error, at: new Date().toISOString() } };
+      summary.rejected += 1;
+      summary.errors.push({ id: sentRecord.id, error });
+    } else {
+      const next = { ...current, _remoteSynced: true };
+      delete next._syncError;
+      // El servidor devuelve su versión cuando es más completa o la fusionó: completar localmente
+      // (no se toca el cliente abierto en el formulario para no pisar lo que se está escribiendo).
+      if (result.client && typeof result.client === 'object' && current.id !== activeId) {
+        const server = normalizeRemoteClient(result.client);
+        Object.keys(server).forEach(key => {
+          if (key.startsWith('_') || ['id', 'clientId', 'savedAt'].includes(key)) return;
+          if (isFilled(server[key])) next[key] = server[key];
+        });
+        if (isFilled(server._entidades)) next._entidades = server._entidades;
+      }
+      local[position] = next;
+      summary.ok += 1;
+    }
+    changed = true;
   });
+
+  if (changed) saveLocalClients(local);
+  return summary;
+}
+
+const REMOTE_PARALLEL_CHUNKS = 2; // lotes en vuelo a la vez (el servidor serializa las escrituras)
+
+/** Misma regla que el servidor (_normalize_cedula): prefijo «C.I.» opcional, 5-12 dígitos. */
+function localCedulaError(client) {
+  const raw = getClientField(client, 'cedula');
+  if (raw === '' || raw === null || raw === undefined) {
+    return clientKey(client) ? null : 'client_identity_required';
+  }
+  const text = String(raw).trim().replace(/^\s*c\.?\s*i\.?\s*(n[or]?\.?|nro\.?)?\s*[:#]?\s*/i, '');
+  if (!text) return null;
+  if (!/^[0-9][0-9 .-]{3,20}$/.test(text)) return 'invalid_cedula';
+  const digits = text.replace(/[ .-]/g, '');
+  return digits.length >= 5 && digits.length <= 12 ? null : 'invalid_cedula';
+}
+
+/** Marca como rechazados, sin enviarlos, los clientes cuya cédula ya se sabe inválida. */
+function markLocallyInvalid(clients) {
+  const invalid = new Map();
+  clients.forEach(client => {
+    const error = localCedulaError(client);
+    if (error) invalid.set(clientKey(client), error);
+  });
+  if (!invalid.size) return { valid: clients, errors: [] };
+  const at = new Date().toISOString();
+  const local = loadLocalClients().map(client => {
+    const error = invalid.get(clientKey(client));
+    return error ? { ...client, _remoteSynced: false, _syncError: { error, at } } : client;
+  });
+  saveLocalClients(local);
+  return {
+    valid: clients.filter(client => !invalid.has(clientKey(client))),
+    errors: [...invalid].map(([id, error]) => ({ id, error }))
+  };
+}
+
+/**
+ * Envía clientes en lotes de REMOTE_SYNC_CHUNK, con hasta REMOTE_PARALLEL_CHUNKS en
+ * vuelo, reintentos con espera ante errores transitorios y cediendo el hilo entre
+ * lotes para no trabar la UI. Si un lote falla definitivamente, los demás siguen;
+ * los clientes de ese lote quedan pendientes y se informa el error al final.
+ */
+async function sendClientsInChunks(clients, onProgress, onRetry) {
+  const cfg = remoteLoadConfig();
+  const saveAllPath = (cfg.endpoints && cfg.endpoints.saveAll) || '/save-all';
+  const { valid, errors: localErrors } = markLocallyInvalid(clients);
+  const totals = { ok: 0, rejected: localErrors.length, errors: [...localErrors], failedChunks: 0, lastError: null };
+  const chunks = [];
+  for (let start = 0; start < valid.length; start += REMOTE_SYNC_CHUNK) chunks.push(valid.slice(start, start + REMOTE_SYNC_CHUNK));
+  let next = 0;
+  let done = 0;
+
+  async function worker() {
+    while (next < chunks.length) {
+      const chunk = chunks[next++];
+      const sent = chunk.map(client => ({ id: clientKey(client), savedAt: String(client.savedAt || '') }));
+      await yieldToBrowser();
+      const payload = { clients: chunk.map(client => clientToApiPayload(normalizeRemoteClient(client))) };
+      try {
+        const response = await withRetry(() => sendJson(saveAllPath, payload), { onRetry });
+        const summary = applySyncResults(sent, syncResponseResults(response, chunk.length));
+        totals.ok += summary.ok;
+        totals.rejected += summary.rejected;
+        totals.errors.push(...summary.errors);
+      } catch (error) {
+        totals.failedChunks += 1;
+        totals.lastError = error;
+        console.error('[RemoteSync] Lote no enviado (queda pendiente):', error);
+      }
+      done += chunk.length;
+      if (onProgress) onProgress(Math.min(done + localErrors.length, clients.length), clients.length, totals);
+      await yieldToBrowser();
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(REMOTE_PARALLEL_CHUNKS, chunks.length) }, worker));
+  if (totals.failedChunks && !totals.ok && !totals.rejected) throw totals.lastError;
+  return totals;
+}
+
+function remoteSetStatus(text) {
+  const el = document.getElementById('rs-status');
+  if (el) el.textContent = text || '';
 }
 
 async function remoteFetchAllClients() {
@@ -381,19 +594,27 @@ async function remoteFetchAllClients() {
   }
   try {
     const remoteClients = filterDeletedRemoteClients(await fetchRemoteClientRecords());
+    await yieldToBrowser();
     const local = loadLocalClients();
     const merged = mergeClientLists(local, remoteClients);
+    const serverIndex = new Map();
+    remoteClients.forEach(record => {
+      clientMatchKeys(record, true).forEach(key => { if (!serverIndex.has(key)) serverIndex.set(key, record); });
+    });
     merged.forEach(client => {
-      const serverRecord = remoteClients.find(record => clientsMatch(record, client));
-      client._remoteSynced = Boolean(
+      const serverRecord = clientMatchKeys(client).map(key => serverIndex.get(key)).find(Boolean);
+      const synced = Boolean(
         serverRecord
         && (
           countFilled(serverRecord) > countFilled(client)
           || clientContentSignature(serverRecord) === clientContentSignature(client)
         )
       );
+      client._remoteSynced = synced;
+      if (synced) delete client._syncError;
     });
     saveLocalClients(merged);
+    renderRejectedClients();
     showToast(`✓ ${merged.length} clientes cargados y conciliados desde el servidor`);
     return true;
   } catch (error) {
@@ -409,74 +630,150 @@ async function remoteSaveAll() {
     showToast('⚠ Remote sync no configurado');
     return false;
   }
+  if (remoteBulkRunning) {
+    showToast('La sincronización ya está en curso');
+    return false;
+  }
   if (!await testPing()) {
     showToast('⚠ Ping falló: servidor no responde');
     return false;
   }
 
+  remoteBulkRunning = true;
   try {
-    const local = loadLocalClients();
-    const pending = local.filter(client => !client._remoteSynced);
+    const pending = loadLocalClients().filter(client => !client._remoteSynced);
     if (!pending.length) {
+      remoteSetStatus('Todos los clientes están sincronizados.');
       showToast('✓ Todos los clientes ya están sincronizados');
       return true;
     }
-    const saveAllPath = (cfg.endpoints && cfg.endpoints.saveAll) || '/save-all';
-    const response = await sendJson(saveAllPath, {
-      clients: pending.map(clientToApiPayload)
+    remoteSetStatus(`Sincronizando 0/${pending.length}…`);
+    const totals = await sendClientsInChunks(pending, (done, total, partial) => {
+      remoteSetStatus(`Sincronizando ${done}/${total}… (${partial.ok} guardados, ${partial.rejected} con datos incorrectos)`);
+    }, (attempt, seconds) => {
+      remoteSetStatus(`Servidor ocupado o sin conexión; reintento ${attempt} en ${seconds} s…`);
     });
-    const results = syncResponseResults(response, pending.length);
-    markSyncedClients(local, results);
-    saveLocalClients(local);
-    showToast(`✓ ${results.length} clientes verificados y sincronizados`);
-    return true;
+    const message = `${totals.ok} clientes sincronizados`
+      + (totals.rejected ? `, ${totals.rejected} con datos incorrectos (ver lista)` : '')
+      + (totals.failedChunks ? `; ${totals.failedChunks} lote(s) no se pudieron enviar y quedan pendientes` : '');
+    remoteSetStatus(message + '.');
+    showToast((totals.rejected || totals.failedChunks ? '⚠ ' : '✓ ') + message, 6000);
+    return !totals.failedChunks;
   } catch (error) {
     console.error('[RemoteSync] Error sincronizando clientes:', error);
+    remoteSetStatus('Error sincronizando: ' + error.message + '. Los clientes no enviados siguen pendientes.');
     showToast('⚠ Error sincronizando: ' + error.message);
     return false;
+  } finally {
+    remoteBulkRunning = false;
+    renderRejectedClients();
   }
 }
 
-async function remoteSendClient(client) {
+/** Encola un cliente para enviarlo en segundo plano (botón «Sync» del formulario). */
+function remoteQueueClient(client) {
   const cfg = remoteLoadConfig();
-  if (!cfg || !cfg.enabled || remoteApplyingServerChanges) return false;
-  const clientId = String(client?.id || client?.cedula || '');
-  if (clientId && remoteSendingClientIds.has(clientId)) {
-    remotePendingClients.set(clientId, client);
+  if (!cfg || !cfg.enabled) {
+    showToast('⚠ Remote sync no está habilitado');
     return false;
   }
-  if (clientId) remoteSendingClientIds.add(clientId);
+  const id = clientKey(client);
+  if (!id) return false;
+  remoteQueue.set(id, client);
+  showToast('Sincronizando cliente…', 2000);
+  void remoteProcessQueue();
+  return true;
+}
 
-  let sendSucceeded = false;
+async function remoteProcessQueue() {
+  if (remoteQueueRunning) return;
+  remoteQueueRunning = true;
   try {
-    const outgoing = normalizeRemoteClient(client);
-    const saveAllPath = (cfg.endpoints && cfg.endpoints.saveAll) || '/save-all';
-    const response = await sendJson(saveAllPath, {
-      clients: [clientToApiPayload(outgoing)]
-    });
-    const results = syncResponseResults(response, 1);
-
-    const local = loadLocalClients();
-    const updated = mergeClientLists(local, [outgoing]);
-    markSyncedClients(updated, results);
-    saveLocalClients(updated);
-    sendSucceeded = true;
-    return true;
-  } catch (error) {
-    console.error('[RemoteSync] Error enviando cliente:', error);
-    showToast('⚠ No se pudo sincronizar el cliente: ' + error.message);
-    return false;
-  } finally {
-    if (clientId) {
-      remoteSendingClientIds.delete(clientId);
-      const pendingClient = remotePendingClients.get(clientId);
-      if (pendingClient) {
-        remotePendingClients.delete(clientId);
-        if (sendSucceeded) setTimeout(() => remoteSendClient(pendingClient), 0);
+    while (remoteQueue.size) {
+      const batch = [...remoteQueue.values()].slice(0, REMOTE_SYNC_CHUNK);
+      batch.forEach(client => remoteQueue.delete(clientKey(client)));
+      try {
+        const totals = await sendClientsInChunks(batch, null, (attempt, seconds) => {
+          showToast(`Servidor ocupado; reintentando en ${seconds} s…`, 3000);
+        });
+        if (totals.failedChunks) {
+          showToast(`⚠ Parte de los clientes no se pudo enviar (${totals.lastError?.message || 'error'}); quedan pendientes`, 6000);
+        } else if (totals.rejected) {
+          const reason = syncErrorLabel(totals.errors[0]?.error);
+          showToast(`⚠ El servidor no aceptó ${batch.length === 1 ? 'el cliente' : totals.rejected + ' clientes'}: ${reason}`, 6000);
+        } else if (totals.ok) {
+          showToast(batch.length === 1 ? '✓ Cliente sincronizado' : `✓ ${totals.ok} clientes sincronizados`);
+        } else {
+          showToast('El cliente cambió durante el envío; vuelve a pulsar Sync', 4000);
+        }
+      } catch (error) {
+        console.error('[RemoteSync] Error enviando cliente:', error);
+        showToast('⚠ No se pudo sincronizar: ' + error.message + ' (queda pendiente)', 5000);
+        break;
       }
     }
+  } finally {
+    remoteQueueRunning = false;
+    renderRejectedClients();
   }
 }
+
+// Compatibilidad: sendClient ahora encola en lugar de enviar en línea.
+function remoteSendClient(client) {
+  return remoteQueueClient(client);
+}
+
+function remoteActivateView(viewName) {
+  document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.view === viewName));
+  document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === `view-${viewName}`));
+  const main = document.getElementById('mainContent');
+  if (main) main.scrollTop = 0;
+}
+
+function renderRejectedClients() {
+  const list = document.getElementById('rs-rejected-list');
+  const count = document.getElementById('rs-rejected-count');
+  if (!list) return;
+  const rejected = loadLocalClients().filter(client => client._syncError && !client._remoteSynced);
+  if (count) count.textContent = String(rejected.length);
+  if (!rejected.length) {
+    list.innerHTML = '<div class="rs-rejected-empty">No hay clientes rechazados.</div>';
+    return;
+  }
+  const escape = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const shown = rejected.slice(0, 200);
+  list.innerHTML = shown.map(client => {
+    const name = client.displayName || `${getClientField(client, 'nombres')} ${getClientField(client, 'apellidos')}`.trim() || 'Sin nombre';
+    const cedula = getClientField(client, 'cedula') || 'sin cédula';
+    return `
+      <div class="rs-rejected-item">
+        <span class="rs-rejected-name">${escape(name)} · ${escape(cedula)}</span>
+        <span class="rs-rejected-reason">${escape(syncErrorLabel(client._syncError.error))}</span>
+        <span class="rs-rejected-actions">
+          <button type="button" class="btn btn-secondary btn-sm" data-rs-open="${escape(clientKey(client))}">Abrir</button>
+          <button type="button" class="btn btn-danger btn-sm" data-rs-delete="${escape(clientKey(client))}">Eliminar</button>
+        </span>
+      </div>`;
+  }).join('') + (rejected.length > shown.length ? `<div class="rs-rejected-empty">… y ${rejected.length - shown.length} más</div>` : '');
+}
+
+document.getElementById('rs-rejected-list')?.addEventListener('click', event => {
+  const openId = event.target.closest('[data-rs-open]')?.dataset.rsOpen;
+  const deleteId = event.target.closest('[data-rs-delete]')?.dataset.rsDelete;
+  if (openId) {
+    if (!window.TufiFormContact?.switchToClient) return;
+    window.TufiFormContact.switchToClient(openId);
+    remoteActivateView('formcontact');
+    return;
+  }
+  if (deleteId) {
+    if (!confirm('¿Eliminar este cliente localmente? No se borra nada en el servidor.')) return;
+    const remaining = loadLocalClients().filter(client => clientKey(client) !== deleteId);
+    saveLocalClients(remaining);
+    renderRejectedClients();
+    showToast('✓ Cliente eliminado localmente');
+  }
+});
 
 // Soft-delete on server (mark as deleted) but keep local copy
 async function remoteSoftDeleteClient(client) {
@@ -488,14 +785,13 @@ async function remoteSoftDeleteClient(client) {
   try {
     const payload = { id: client.id, cedula: client.cedula, deleted: true };
     await sendJson(path, payload);
-    // mark local record as remote-deleted flag
     try {
-      const arr = (function(){ try { return JSON.parse(localStorage.getItem(REMOTE_CLIENTS_KEY) || '[]'); } catch(e){ return []; } })();
+      const arr = loadLocalClients();
       const idx = arr.findIndex(c => c.id === client.id || (c.cedula && client.cedula && c.cedula === client.cedula));
-      if (idx >= 0) { arr[idx]._remoteDeleted = true; localStorage.setItem(REMOTE_CLIENTS_KEY, JSON.stringify(arr)); window.dispatchEvent(new Event('tufi:clients-changed')); }
-    } catch(e){}
+      if (idx >= 0) { arr[idx] = { ...arr[idx], _remoteDeleted: true }; saveLocalClients(arr); }
+    } catch (e) { /* ignore */ }
     return true;
-  } catch(e) { return false; }
+  } catch (e) { return false; }
 }
 
 // Admin delete on server (permanent) - requires admin token
@@ -555,6 +851,8 @@ window.RemoteSync = {
   saveAll: remoteSaveAll,
   syncAll: remoteSaveAll,
   sendClient: remoteSendClient,
+  queueClient: remoteQueueClient,
+  renderRejected: renderRejectedClients,
   searchByCedula: remoteSearchByCedula,
   searchIp: remoteSearchIp,
   searchFuncionario: remoteSearchFuncionario,
@@ -609,18 +907,15 @@ try {
   if (saveAllBtn) saveAllBtn.addEventListener('click', (e) => { setTimeout(() => { RemoteSync.saveAll(); }, 50); });
 } catch(e) {}
 
-// Listen for clients-changed and try to send active client
-window.addEventListener('tufi:clients-changed', () => {
-  if (remoteApplyingServerChanges) return;
-  try {
-    const id = (window.TufiFormContact && window.TufiFormContact.getActiveClientId) ? window.TufiFormContact.getActiveClientId() : null;
-    if (!id) return;
-    const client = (window.TufiFormContact && window.TufiFormContact.clientById) ? window.TufiFormContact.clientById(id) : null;
-    if (!client) return;
-    // Fire-and-forget
-    setTimeout(() => { RemoteSync.sendClient(client); }, 200);
-  } catch(e) {}
-});
+// Ya NO se envía el cliente con cada cambio (tufi:clients-changed se dispara en cada
+// autoguardado local). El envío es manual: botón «Sync» del formulario o SaveAll del menú.
+function remoteUpdateSyncButton() {
+  const button = document.getElementById('fc-sync-client');
+  if (button) button.hidden = !remoteLoadConfig().enabled;
+}
+remoteUpdateSyncButton();
+window.addEventListener('tufi:remote-config-changed', remoteUpdateSyncButton);
+renderRejectedClients();
 
 // Provide a custom event listener for PDF generation notifications
 window.addEventListener('tufi:pdf-generated', e => {
@@ -640,6 +935,8 @@ console.log('[Tufi] RemoteSync loaded');
       remoteNotifyPingStatus(ok, revision);
       if (ok) {
         await testAdmin(); // populate admin flag
+        // Si 10 equipos abren la app a la vez (inicio de jornada), repartir la descarga.
+        await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 4000));
         await remoteFetchAllClients();
       }
     }
@@ -698,6 +995,9 @@ console.log('[Tufi] RemoteSync loaded');
           document.getElementById('rs-token').value = cfg.token || '';
           document.getElementById('rs-pingpong').checked = !!cfg.pingpong;
           document.getElementById('rs-enabled').checked = !!cfg.enabled;
+          const autoLookup = document.getElementById('rs-autolookup');
+          if (autoLookup) autoLookup.checked = cfg.autoLookup === true;
+          renderRejectedClients();
           const eps = cfg.endpoints || {};
           document.getElementById('rs-endpoint-ping').value = eps.ping || '/ping';
           document.getElementById('rs-endpoint-list').value = eps.list || '/clients';
@@ -739,6 +1039,7 @@ console.log('[Tufi] RemoteSync loaded');
           token: document.getElementById('rs-token').value.trim(),
           pingpong: !!document.getElementById('rs-pingpong').checked,
           enabled: !!document.getElementById('rs-enabled').checked,
+          autoLookup: !!document.getElementById('rs-autolookup')?.checked,
           endpoints: {
             ping: document.getElementById('rs-endpoint-ping').value.trim() || '/ping',
             list: document.getElementById('rs-endpoint-list').value.trim() || '/clients',

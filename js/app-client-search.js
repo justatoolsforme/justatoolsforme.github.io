@@ -86,14 +86,32 @@
 
   function loadStoredClients(api) {
     const apiClients = api?.clientsLoad?.();
-    if (Array.isArray(apiClients) && apiClients.length) return apiClients;
-
+    if (Array.isArray(apiClients)) return apiClients;
+    if (window.TufiClientStore) return window.TufiClientStore.load();
     try {
       const storedClients = JSON.parse(localStorage.getItem(CLIENTS_STORAGE_KEY) || '[]');
       return Array.isArray(storedClients) ? storedClients : [];
     } catch {
-      return Array.isArray(apiClients) ? apiClients : [];
+      return [];
     }
+  }
+
+  // Límite de tarjetas renderizadas: dibujar miles de tarjetas traba la página.
+  const RESULT_LIMIT_KEY = 'tufi_search_limit_v1';
+  const DEFAULT_RESULT_LIMIT = 30;
+  const limitInput = document.getElementById('cs-limit');
+
+  function getResultLimit() {
+    const fromInput = Number(limitInput?.value);
+    if (Number.isInteger(fromInput) && fromInput >= 1) return Math.min(fromInput, 1000);
+    return DEFAULT_RESULT_LIMIT;
+  }
+
+  try {
+    const storedLimit = Number(localStorage.getItem(RESULT_LIMIT_KEY));
+    if (limitInput) limitInput.value = Number.isInteger(storedLimit) && storedLimit >= 1 ? storedLimit : DEFAULT_RESULT_LIMIT;
+  } catch {
+    if (limitInput) limitInput.value = DEFAULT_RESULT_LIMIT;
   }
 
   function buildCurrentDraftClient(api, clients) {
@@ -270,7 +288,7 @@
     activateView('formcontact');
   }
 
-  function buildResultCard(entry) {
+  function buildResultCard(entry, showActions) {
     const client = entry.client;
     const source = getClientSource(client);
     const stage = getClientStage(client);
@@ -284,8 +302,6 @@
     const updatedLabel = client._searchDraft
       ? 'Borrador actual'
       : `Actualizado: ${formatDate(client.savedAt)}`;
-
-    const showActions = isRemoteActive();
 
     return `
       <div class="search-card">
@@ -390,7 +406,11 @@
       return haystack.includes(query);
     });
 
-    countEl.textContent = `${results.length} resultado${results.length === 1 ? '' : 's'}`;
+    const limit = getResultLimit();
+    const visible = results.slice(0, limit);
+    countEl.textContent = results.length > visible.length
+      ? `Mostrando ${visible.length} de ${results.length} resultados`
+      : `${results.length} resultado${results.length === 1 ? '' : 's'}`;
 
     if (!indexedClients.length) {
       resultsEl.innerHTML = '<div class="search-empty">Todavia no hay clientes guardados para buscar.</div>';
@@ -402,7 +422,11 @@
       return;
     }
 
-    resultsEl.innerHTML = results.map(buildResultCard).join('');
+    const showActions = isRemoteActive();
+    resultsEl.innerHTML = visible.map(entry => buildResultCard(entry, showActions)).join('')
+      + (results.length > visible.length
+        ? `<div class="search-more">Hay ${results.length - visible.length} resultados más. Afina el filtro o aumenta «Máx. resultados».</div>`
+        : '');
     resultsEl.querySelectorAll('.search-open-btn').forEach(button => {
       button.addEventListener('click', () => openClient(button.dataset.id));
     });
@@ -415,12 +439,16 @@
         if (id === CURRENT_DRAFT_ID) { showToast('⚠ No se puede eliminar el borrador actual'); return; }
         if (!confirm('¿Estás seguro que deseas eliminar este cliente localmente?')) return;
         try {
-          const arr = JSON.parse(localStorage.getItem(CLIENTS_STORAGE_KEY) || '[]');
+          const api = getApi();
+          const arr = loadStoredClients(api);
           const idx = arr.findIndex(c => String(c.id) === id || String(c.clientId || '') === id);
           if (idx === -1) { showToast('⚠ Cliente no encontrado'); return; }
           arr.splice(idx, 1);
-          localStorage.setItem(CLIENTS_STORAGE_KEY, JSON.stringify(arr));
-          window.dispatchEvent(new Event('tufi:clients-changed'));
+          if (api?.clientsSave) api.clientsSave(arr);
+          else {
+            window.TufiClientStore?.save(arr);
+            window.dispatchEvent(new Event('tufi:clients-changed'));
+          }
           showToast('✓ Cliente eliminado localmente');
         } catch (e) { showToast('⚠ Error al eliminar'); }
       });
@@ -431,7 +459,7 @@
       button.addEventListener('click', async () => {
         if (!confirm('¿Estás seguro que deseas marcar este cliente como eliminado en el servidor?')) return;
         const id = button.dataset.id;
-        const client = indexedClients.find(e => (String(e.client.id) === id)).client;
+        const client = indexedClients.find(e => (String(e.client.id) === id))?.client;
         if (!client) { showToast('⚠ Cliente no encontrado'); return; }
         if (!window.RemoteSync) { showToast('⚠ RemoteSync no disponible'); return; }
         const ok = await window.RemoteSync.softDelete(client);
@@ -445,7 +473,7 @@
       button.addEventListener('click', async () => {
         if (!confirm('¿Estás seguro que deseas eliminar este cliente en el servidor? Esta acción es irreversible.')) return;
         const id = button.dataset.id;
-        const client = indexedClients.find(e => (String(e.client.id) === id)).client;
+        const client = indexedClients.find(e => (String(e.client.id) === id))?.client;
         if (!client) { showToast('⚠ Cliente no encontrado'); return; }
         if (!window.RemoteSync) { showToast('⚠ RemoteSync no disponible'); return; }
         const isAdmin = await (window.RemoteSync.testAdmin ? window.RemoteSync.testAdmin() : Promise.resolve(false));
@@ -608,10 +636,25 @@
     }
   }
 
+  // Escribir en el buscador no re-renderiza en cada tecla: espera 150 ms.
+  let renderTimer = null;
+  function scheduleRender() {
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(renderResults, 150);
+  }
+
   [queryInput, sourceSelect, fieldSelect, stageSelect, birthFromInput, birthToInput, ageMinInput, ageMaxInput, nextAgeInput].filter(Boolean).forEach(control => {
-    control.addEventListener('input', renderResults);
-    control.addEventListener('change', renderResults);
+    control.addEventListener('input', scheduleRender);
+    control.addEventListener('change', scheduleRender);
   });
+
+  limitInput?.addEventListener('change', () => {
+    const limit = getResultLimit();
+    limitInput.value = limit;
+    try { localStorage.setItem(RESULT_LIMIT_KEY, String(limit)); } catch { /* ignore */ }
+    renderResults();
+  });
+  limitInput?.addEventListener('input', scheduleRender);
 
   apiCedulaButton?.addEventListener('click', searchRemoteByCedula);
   apiFuncionarioButton?.addEventListener('click', searchRemoteFuncionario);
@@ -630,8 +673,25 @@
     renderResults();
   });
 
-  searchNavBtn?.addEventListener('click', refreshSearch);
-  window.addEventListener('tufi:clients-changed', refreshSearch);
+  // tufi:clients-changed se dispara con cada autoguardado del formulario. Re-indexar
+  // 3.000 clientes en cada tecla causaba lag: sólo se re-indexa si la vista Búsqueda
+  // está visible (con debounce); si no, se marca pendiente y se hace al abrirla.
+  let indexStale = false;
+  let refreshTimer = null;
+  function searchViewIsActive() {
+    return document.getElementById('view-busqueda')?.classList.contains('active') === true;
+  }
+  function onClientsChanged() {
+    if (!searchViewIsActive()) { indexStale = true; return; }
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(refreshSearch, 250);
+  }
+
+  searchNavBtn?.addEventListener('click', () => { indexStale = false; refreshSearch(); });
+  window.addEventListener('tufi:clients-changed', onClientsChanged);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && indexStale && searchViewIsActive()) { indexStale = false; refreshSearch(); }
+  });
 
   refreshSearch();
 })();

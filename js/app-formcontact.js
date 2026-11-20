@@ -188,15 +188,19 @@ function applyStructuredFcNamePattern(inputEl) {
 /* ============================================================
    C. STORAGE
    ============================================================ */
+// Persistencia compacta (v4) con caché en memoria: ver js/app-client-store.js.
 function clientsLoad() {
+  if (window.TufiClientStore) return window.TufiClientStore.load();
   try { return JSON.parse(localStorage.getItem(FC_CLIENTS_KEY) || '[]'); }
   catch { return []; }
 }
 function clientsSave(clients) {
-  localStorage.setItem(FC_CLIENTS_KEY, JSON.stringify(clients));
+  if (window.TufiClientStore) window.TufiClientStore.save(clients);
+  else localStorage.setItem(FC_CLIENTS_KEY, JSON.stringify(clients));
   window.dispatchEvent(new Event('tufi:clients-changed'));
 }
 function clientById(id) {
+  if (!id) return null;
   return clientsLoad().find(c => c.id === id) || null;
 }
 
@@ -804,11 +808,50 @@ function fcLookupErrorMessage(error) {
   return 'No se pudo completar la búsqueda en IPS';
 }
 
+// Empleador a usar: el activo con ingreso más reciente; si no hay activo, el último.
+function fcPickIpsEmployer(record) {
+  const employers = Array.isArray(record?.empleadores) ? record.empleadores : [];
+  const active = employers
+    .filter(item => item?.activo)
+    .sort((a, b) => String(b.fecha_ingreso || b.fecha_ingreso_ips || '').localeCompare(String(a.fecha_ingreso || a.fecha_ingreso_ips || '')));
+  return active[0] || record?.ultimo_empleador || employers[0] || {};
+}
+
+// Clasifica si el cliente es viable según IPS (sin aportes / 1 aporte / sin empleador activo).
+// Reglas validadas con la prueba realista (nov/2026):
+//  - 0 o 1 aporte, o sin empleadores → no potable.
+//  - Sin empleador activo → dudoso; se muestra el último aporte para decidir
+//    (p. ej. «último aporte ENERO/2021, hace 70 meses» vs. «AGOSTO/2026, hace 3»).
+//  - Empleador activo con último aporte reciente (≤ 3 meses) → potable.
+function fcIpsViability(record) {
+  const resumen = record?.resumen || {};
+  const meses = Number(resumen.total_meses_aportados_reportados || 0);
+  const activos = Number(resumen.cantidad_empleadores_activos || 0);
+  const last = record?.ultimo_periodo_registrado;
+  let lastText = '';
+  let monthsAgo = null;
+  if (last?.anio && last?.mes) {
+    const now = new Date();
+    monthsAgo = (now.getFullYear() * 12 + now.getMonth() + 1) - (Number(last.anio) * 12 + Number(last.mes));
+    lastText = `último aporte ${last.nombre_mes || last.mes}/${last.anio}${monthsAgo > 0 ? `, hace ${monthsAgo} ${monthsAgo === 1 ? 'mes' : 'meses'}` : ''}`;
+  }
+  if (!resumen.tiene_empleadores) return { ok: false, text: 'No potable: está en IPS pero sin empleadores' };
+  if (meses === 0) return { ok: false, text: 'No potable: 0 aportes en IPS' };
+  if (meses === 1) return { ok: false, text: 'No potable: sólo 1 aporte en IPS' };
+  if (!activos) return { ok: false, text: `Dudoso: ${meses} aportes, sin empleador activo${lastText ? ` (${lastText})` : ''}` };
+  if (monthsAgo !== null && monthsAgo > 3) return { ok: false, text: `Dudoso: empleador activo pero ${lastText}` };
+  return { ok: true, text: `${meses} aportes · empleador activo${lastText ? ` · ${lastText}` : ''}` };
+}
+
+// IPS responde 503 con retry_after cuando está caído (se restablece en ~1 min).
+function fcRetryAfterSeconds(error) {
+  const match = String(error?.message || '').match(/"retry_after"\s*:\s*(\d+)/);
+  return match ? Math.min(Number(match[1]), 120) : 60;
+}
+
 function fcApplyLookupRecord(record, source, cedula) {
   const person = source === 'ips' ? (record?.cotizante || {}) : record;
-  const employer = source === 'ips'
-    ? (record?.ultimo_empleador || record?.empleadores?.find(item => item.activo) || {})
-    : {};
+  const employer = source === 'ips' ? fcPickIpsEmployer(record) : {};
   const additions = {
     'fc-nombres': fcLookupText(record?.['fc-nombres'], record?.nombres, person?.nombre),
     'fc-apellidos': fcLookupText(record?.['fc-apellidos'], record?.apellidos, person?.apellido),
@@ -845,8 +888,13 @@ function fcApplyLookupRecord(record, source, cedula) {
   return filled;
 }
 
-async function fcSearchByCedula(cedula) {
+let fcIpsRetryTimer = null;
+const FC_IPS_MAX_AUTO_RETRIES = 2;
+
+async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
   if (fcLookupInFlightCedula === cedula) return;
+  clearTimeout(fcIpsRetryTimer);
+  fcIpsRetryTimer = null;
   const requestId = ++fcLookupRequestId;
   const remoteRevision = window.RemoteSync?.getConfigRevision?.();
   fcLookupInFlightCedula = cedula;
@@ -947,7 +995,17 @@ async function fcSearchByCedula(cedula) {
         ipsRecords = fcCachePositiveIpsRecords(cedula, matchingIpsRecords);
       } catch (error) {
         console.error('[FC] Error buscando en IPS:', error);
-        if (isCurrent()) {
+        if (!isCurrent()) return;
+        const ipsDown = /remote_error_503\b|ips_temporarily_unavailable/.test(String(error?.message || ''));
+        if (ipsDown && ipsRetry < FC_IPS_MAX_AUTO_RETRIES) {
+          const seconds = fcRetryAfterSeconds(error);
+          showToast(`⚠ IPS no disponible; se reintentará automáticamente en ${seconds} s`, 8000);
+          fcIpsRetryTimer = setTimeout(() => {
+            fcIpsRetryTimer = null;
+            if (fcNormalizeLookupCedula(cedEl?.value) !== cedula) return; // el usuario pasó a otra cédula
+            void fcSearchByCedula(cedula, { ipsRetry: ipsRetry + 1 });
+          }, seconds * 1000);
+        } else {
           showToast(`⚠ ${fcLookupErrorMessage(error)}`, 5000);
         }
         return;
@@ -963,11 +1021,11 @@ async function fcSearchByCedula(cedula) {
         return;
       }
       const filled = fcApplyLookupRecord(ipsRecords[0], 'ips', cedula);
+      const viability = fcIpsViability(ipsRecords[0]);
       showToast(
-        funcionariosError
-          ? 'Encontrado en IPS; no se pudo verificar la nómina'
-          : 'No se encontró en nómina; coincidencia encontrada en IPS',
-        5000
+        `${viability.ok ? '✓' : '⚠'} Encontrado en IPS: ${viability.text}`
+          + (funcionariosError ? ' (no se pudo verificar la nómina)' : ''),
+        viability.ok ? 5000 : 8000
       );
       if (!filled) console.info('[FC] La coincidencia no agregó campos porque ya estaban completos.');
       return;
@@ -975,9 +1033,9 @@ async function fcSearchByCedula(cedula) {
 
     showToast(
       funcionariosError
-        ? 'Sin resultados en IPS; no se pudo verificar la nómina'
-        : 'No se encontraron resultados en nómina ni en IPS',
-      5000
+        ? '⚠ No potable: sin registro en IPS (no se pudo verificar la nómina)'
+        : '⚠ No potable: no está en nómina ni en IPS',
+      8000
     );
   } finally {
     if (requestId === fcLookupRequestId && fcLookupInFlightCedula === cedula) {
@@ -1012,19 +1070,25 @@ cedEl?.addEventListener('blur', async () => {
     && normalizeCi(c.cedula || c['fc-cedula']) === ci
   );
   if (found) {
-    
     formClear();
     formWrite(found);
     fc_activeClientId = found.id;
     uiSetActiveClient(found.id, found.displayName);
     fcResetUndoHistory();
     cedEl.classList.remove('fc-dup-error');
-    showToast('✓ Cliente guardado cargado; verificando datos en el servidor…', 5000);
-    await fcSearchByCedula(ci);
+    showToast('✓ Cliente guardado cargado', 4000);
     return;
   }
 
-  await fcSearchByCedula(ci);
+  // Sin coincidencia local: la búsqueda remota (nómina → IPS) es manual con el
+  // botón «Buscar en nómina e IPS», salvo que el menú Sync active la búsqueda
+  // automática. Así no se consulta IPS por cada cédula escrita.
+  const remoteConfig = window.RemoteSync?.loadConfig?.() || {};
+  if (remoteConfig.autoLookup === true && fcRemoteLookupReady) {
+    await fcSearchByCedula(ci);
+  } else if (fcRemoteLookupReady) {
+    showToast('No está guardado localmente; usa «Buscar en nómina e IPS»', 4000);
+  }
 });
 
 
@@ -2239,6 +2303,20 @@ window.addEventListener('beforeunload', e => {
     saveCurrentClient();
     const panel = document.getElementById('clientListPanel');
     if (panel?.style.display !== 'none') buildKanban();
+  });
+
+  // Envío al servidor sólo bajo demanda (antes se enviaba con cada cambio de input).
+  document.getElementById('fc-sync-client')?.addEventListener('click', () => {
+    const saved = saveCurrentClient({ silent: true });
+    if (!saved) {
+      showToast('⚠ Completá al menos un dato del cliente antes de sincronizar');
+      return;
+    }
+    if (!window.RemoteSync?.queueClient) {
+      showToast('⚠ Remote Sync no está disponible');
+      return;
+    }
+    window.RemoteSync.queueClient(saved);
   });
 
   document.getElementById('downloadAllBtn')?.addEventListener('click', downloadAllClients);

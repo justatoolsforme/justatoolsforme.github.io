@@ -651,6 +651,9 @@ html, body {
   z-index: 12;
 }
 
+/* `display:flex` anulaba el atributo hidden: el menú salía siempre abierto. */
+.action-menu-dropdown[hidden] { display: none; }
+
 .action-menu-item {
   width: 100%;
   border: none;

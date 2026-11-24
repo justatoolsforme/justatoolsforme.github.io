@@ -656,9 +656,8 @@ function fcLookupConfigIsReady(remote, config) {
     remote
     && config?.enabled === true
     && String(config.url || '').trim()
-    && /^[0-9]{1,5}$/.test(port)
-    && portNumber >= 1
-    && portNumber <= 65535
+    // Puerto opcional: vacío = el de la URL o el estándar (443 con HTTPS).
+    && (port === '' || (/^[0-9]{1,5}$/.test(port) && portNumber >= 1 && portNumber <= 65535))
     && String(config.token || '').trim()
     && typeof remote.testPing === 'function'
     && typeof remote.searchFuncionario === 'function'
@@ -2330,6 +2329,14 @@ window.addEventListener('beforeunload', e => {
   });
 
   document.getElementById('downloadAllBtn')?.addEventListener('click', downloadAllClients);
+
+  // Los contadores también cambian cuando llegan clientes del servidor o se
+  // borran desde Búsqueda/Sync (antes quedaban en 0 tras la descarga inicial).
+  let countsFrame = 0;
+  window.addEventListener('tufi:clients-changed', () => {
+    if (countsFrame) return;
+    countsFrame = requestAnimationFrame(() => { countsFrame = 0; pipelineUpdateCounts(); });
+  });
 
   pipelineUpdateCounts();
 })();

@@ -799,6 +799,12 @@ function fcLookupErrorMessage(error) {
   if (/ips_authentication_failed/.test(message)) {
     return 'IPS rechazó las credenciales configuradas en el servidor';
   }
+  if (/lookup_service_unavailable/.test(message)) {
+    return 'El servicio de consultas (pc-home) no responde; verifica que esté encendido y conectado a Tailscale';
+  }
+  if (/ips_busy/.test(message)) {
+    return 'IPS está atendiendo muchas consultas; inténtalo en unos segundos';
+  }
   if (/remote_error_503\b|ips_temporarily_unavailable/.test(message)) {
     return 'IPS está temporalmente no disponible; inténtalo más tarde';
   }
@@ -999,7 +1005,11 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
         const ipsDown = /remote_error_503\b|ips_temporarily_unavailable/.test(String(error?.message || ''));
         if (ipsDown && ipsRetry < FC_IPS_MAX_AUTO_RETRIES) {
           const seconds = fcRetryAfterSeconds(error);
-          showToast(`⚠ IPS no disponible; se reintentará automáticamente en ${seconds} s`, 8000);
+          const detail = String(error?.message || '');
+          const what = /lookup_service_unavailable/.test(detail)
+            ? 'El servicio de consultas (pc-home) no responde'
+            : /ips_busy/.test(detail) ? 'IPS está ocupado' : 'IPS no disponible';
+          showToast(`⚠ ${what}; se reintentará automáticamente en ${seconds} s`, 8000);
           fcIpsRetryTimer = setTimeout(() => {
             fcIpsRetryTimer = null;
             if (fcNormalizeLookupCedula(cedEl?.value) !== cedula) return; // el usuario pasó a otra cédula

@@ -934,6 +934,7 @@ kbd {
   background: var(--bg-section);
   box-sizing: border-box;
 }
+.sync-panel input[type="checkbox"] { width: auto; flex: none; padding: 0; margin: 0; }
 .sync-panel label { font-size: 13px; color: var(--text-secondary); }
 .sync-panel h3 { font-family: var(--font-ui); margin-bottom:10px; font-size:16px; }
 .sync-panel .btn { white-space: nowrap; }
@@ -950,7 +951,7 @@ kbd {
   .sync-panel > div:last-child { width: 100%; }
   .sync-panel .grid-endpoints { grid-template-columns: 1fr 1fr; }
   .sync-panel .actions-row { justify-content: flex-start; }
-  .sync-panel .actions-row .btn { flex: 1 1 100%; min-width: 0; }
+  .sync-panel .actions-row .btn { flex: 1 1 100%; min-width: 0; margin-left: 0; }
 }
 
 .preview-detail {

@@ -155,17 +155,20 @@
             </select>
           </div>
         </div>
-      </div>
-
-      <div class="form-section">
         <div class="fc-lookup-actions" id="fc-lookup-actions" hidden>
-          <button type="button" class="btn btn-primary" id="fc-search-cedula">
-            Buscar en nómina e IPS
+          <button type="button" class="btn btn-primary" id="fc-search-cedula" title="Buscar la cédula en nómina y luego en IPS">
+            SYNC IPS
           </button>
           <button type="button" class="btn btn-secondary" id="fc-view-lookup" hidden>
             Ver
           </button>
         </div>
+        <div class="ips-down-alert" id="fc-ips-alert" role="alert" hidden>
+          <strong>⚠ IPS apagado.</strong> La PC local con IPS y nómina no responde: enciéndela y comprueba que Tailscale esté conectado. SYNC IPS no funcionará hasta entonces.
+        </div>
+      </div>
+
+      <div class="form-section">
         <div class="section-label">Datos Personales</div>
         <div class="form-grid">
           <div class="field">
@@ -609,6 +612,7 @@
                 <label style="display:flex;gap:6px;align-items:center"><input id="rs-pingpong" type="checkbox"> PingPong activo</label>
                 <label style="display:flex;gap:6px;align-items:center;margin-left:auto"><input id="rs-enabled" type="checkbox"> Enabled</label>
               </div>
+              <div class="ips-status" id="rs-ips-status" data-state="unknown" role="status">IPS (PC local): sin comprobar — pulsa «Probar Ping»</div>
               <div style="margin-bottom:8px">
                 <label style="display:flex;gap:6px;align-items:center"><input id="rs-autolookup" type="checkbox"> Al escribir una cédula, buscar automáticamente (local → nómina → IPS)</label>
               </div>

@@ -49,6 +49,15 @@ function remoteNotifyPingStatus(ok, revision) {
   }));
 }
 
+/** Estado de pc-home (null = desconocido). Lo escuchan Formularios y el panel Sync. */
+let remoteLookupUp = null;
+function remoteNotifyLookupStatus(up) {
+  const changed = remoteLookupUp !== up;
+  remoteLookupUp = up;
+  window.dispatchEvent(new CustomEvent('tufi:lookup-status', { detail: { up, changed } }));
+}
+function getLookupStatus() { return remoteLookupUp; }
+
 function buildBaseUrl(cfg) {
   if (!cfg || !cfg.url) return null;
   // if user included scheme, use as-is
@@ -72,6 +81,11 @@ async function testPing({ allowDisabled = false } = {}) {
     if (!text) return false;
     if (/pong/i.test(text) || /"pong"\s*:\s*true/i.test(text)) {
       try { const c = remoteLoadConfig(); c._lastPing = Date.now(); remoteSaveConfig(c); } catch(e){}
+      // La API indica si pc-home (IPS + nómina) responde: "lookup": "up" | "down".
+      try {
+        const lookup = JSON.parse(text)?.lookup;
+        if (lookup === 'up' || lookup === 'down') remoteNotifyLookupStatus(lookup === 'up');
+      } catch (e) {}
       return true;
     }
     return false;
@@ -847,6 +861,8 @@ window.RemoteSync = {
   loadConfig: remoteLoadConfig,
   saveConfig: remoteSaveConfig,
   testPing,
+  getLookupStatus,
+  notifyLookupStatus: remoteNotifyLookupStatus,
   getConfigRevision: () => remoteConfigRevision,
   saveAll: remoteSaveAll,
   syncAll: remoteSaveAll,

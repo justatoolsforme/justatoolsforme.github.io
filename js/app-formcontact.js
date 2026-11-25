@@ -675,16 +675,81 @@ function fcClearLookupJson() {
   if (dialog?.open) dialog.close();
 }
 
+function fcSyncLookupEnabled() {
+  const remote = window.RemoteSync;
+  return fcLookupConfigIsReady(remote, remote?.loadConfig?.());
+}
+
 function fcSetRemoteLookupAvailability(ready) {
   fcRemoteLookupReady = Boolean(ready);
+  // SYNC IPS se muestra siempre que Sync esté habilitado y configurado; el ping
+  // se comprueba al pulsarlo (si falla, se avisa en lugar de ocultar el botón).
+  const enabled = fcSyncLookupEnabled();
   const actions = document.getElementById('fc-lookup-actions');
-  if (actions) actions.hidden = !fcRemoteLookupReady;
+  if (actions) actions.hidden = !enabled;
   const searchButton = document.getElementById('fc-search-cedula');
   if (searchButton) {
-    searchButton.disabled = !fcRemoteLookupReady || Boolean(fcLookupInFlightCedula);
+    searchButton.disabled = !enabled || Boolean(fcLookupInFlightCedula);
   }
   if (!fcRemoteLookupReady) fcClearLookupJson();
+  fcRenderLookupStatus();
 }
+
+// ── Estado de pc-home (IPS + nómina en la PC local, vía Tailscale) ──────────
+// La API lo informa en /ping ("lookup": "up"|"down"). Si está apagado se avisa en
+// Formularios (bajo SYNC IPS) y en el panel Sync, para que se encienda.
+let fcLookupUp = null;
+
+function fcRenderLookupStatus() {
+  const enabled = fcSyncLookupEnabled();
+  const alertBox = document.getElementById('fc-ips-alert');
+  if (alertBox) alertBox.hidden = !(enabled && fcLookupUp === false);
+  const status = document.getElementById('rs-ips-status');
+  if (!status) return;
+  const view = !enabled
+    ? ['unknown', 'IPS (PC local): Sync deshabilitado o sin configurar']
+    : fcLookupUp === true
+      ? ['up', '✓ IPS (PC local): encendido y conectado']
+      : fcLookupUp === false
+        ? ['down', '⚠ IPS (PC local): APAGADO — enciende la PC local y comprueba Tailscale']
+        : ['unknown', 'IPS (PC local): comprobando…'];
+  status.dataset.state = view[0];
+  status.textContent = view[1];
+}
+
+window.addEventListener('tufi:lookup-status', event => {
+  const up = event.detail?.up === true;
+  const previous = fcLookupUp;
+  fcLookupUp = up;
+  fcRenderLookupStatus();
+  if (!fcSyncLookupEnabled() || previous === up) return;
+  if (!up) {
+    showToast('⚠ IPS apagado: enciende la PC local (IPS y nómina) y comprueba Tailscale', 9000);
+  } else if (previous === false) {
+    showToast('✓ IPS vuelve a estar disponible', 4000);
+  }
+});
+
+function fcNoteLookupError(error) {
+  if (/lookup_service_unavailable/.test(String(error?.message || ''))) {
+    window.RemoteSync?.notifyLookupStatus?.(false);
+  }
+}
+
+// Comprobación periódica (el servidor cachea el estado 15 s): avisa aunque nadie
+// busque y detecta cuando pc-home vuelve. Sólo con la pestaña visible.
+setInterval(() => {
+  if (document.visibilityState !== 'visible' || !fcSyncLookupEnabled()) return;
+  void window.RemoteSync?.testPing?.();
+}, 30000);
+// Al cargar: mostrar SYNC IPS si Sync está habilitado y comprobar pc-home.
+setTimeout(() => {
+  fcSetRemoteLookupAvailability(fcRemoteLookupReady);
+  if (fcSyncLookupEnabled()) void window.RemoteSync?.testPing?.();
+}, 0);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && fcSyncLookupEnabled()) void window.RemoteSync?.testPing?.();
+});
 
 async function fcRefreshRemoteLookupAvailability() {
   const checkId = ++fcLookupAvailabilityRequestId;
@@ -943,6 +1008,7 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
         throw new Error('funcionarios_search_unavailable');
       }
       funcionarios = await remote.searchFuncionario(cedula);
+      remote.notifyLookupStatus?.(true); // respondió pc-home
       if (!Array.isArray(funcionarios)) throw new Error('invalid_funcionarios_response');
       const matchingFuncionarios = funcionarios.filter(record =>
         fcLookupRecordMatchesCedula(record, 'funcionarios', cedula)
@@ -953,6 +1019,7 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
       funcionarios = matchingFuncionarios;
     } catch (error) {
       funcionariosError = error;
+      fcNoteLookupError(error);
       console.error('[FC] Error buscando en nómina de funcionarios:', error);
     }
 
@@ -1000,6 +1067,7 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
         ipsRecords = fcCachePositiveIpsRecords(cedula, matchingIpsRecords);
       } catch (error) {
         console.error('[FC] Error buscando en IPS:', error);
+        fcNoteLookupError(error);
         if (!isCurrent()) return;
         const ipsDown = /remote_error_503\b|ips_temporarily_unavailable/.test(String(error?.message || ''));
         if (ipsDown && ipsRetry < FC_IPS_MAX_AUTO_RETRIES) {
@@ -1049,7 +1117,7 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
   } finally {
     if (requestId === fcLookupRequestId && fcLookupInFlightCedula === cedula) {
       fcLookupInFlightCedula = '';
-      if (searchButton) searchButton.disabled = !fcRemoteLookupReady;
+      if (searchButton) searchButton.disabled = !fcSyncLookupEnabled();
     }
   }
 }

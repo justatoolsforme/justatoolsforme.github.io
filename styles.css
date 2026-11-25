@@ -308,7 +308,34 @@ html, body {
   padding: 14px 20px 0;
 }
 .fc-lookup-actions[hidden],
-#fc-view-lookup[hidden] { display: none !important; }
+#fc-view-lookup[hidden],
+.ips-down-alert[hidden] { display: none !important; }
+#fc-search-cedula { letter-spacing: .04em; font-weight: 700; }
+
+/* Aviso: pc-home (IPS + nómina) apagado */
+.ips-down-alert {
+  margin: 12px 20px 16px;
+  padding: 10px 14px;
+  border: 1px solid #e0a8a8;
+  border-left: 4px solid #c0392b;
+  border-radius: var(--radius-sm);
+  background: #fdecea;
+  color: #7a1f17;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.ips-status {
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background: var(--bg-section);
+  color: var(--text-secondary);
+}
+.ips-status[data-state="up"] { border-color: #9fd3ae; background: #eaf7ee; color: #1e6b35; }
+.ips-status[data-state="down"] { border-color: #e0a8a8; border-left: 4px solid #c0392b; background: #fdecea; color: #7a1f17; font-weight: 600; }
+
 
 .fc-lookup-dialog {
   width: min(900px, calc(100vw - 32px));

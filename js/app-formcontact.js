@@ -984,6 +984,22 @@ function fcEmployerNamesMatch(a, b) {
   return shorter.length >= 10 && ` ${longer} `.includes(` ${shorter} `);
 }
 
+function fcNameTokens(value) {
+  return new Set(String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .split(/[^A-Z]+/)
+    .filter(token => token.length >= 3 && !['DEL', 'LOS', 'LAS', 'VDA'].includes(token)));
+}
+
+// ¿Nómina e IPS describen a la misma persona? Basta un apellido en común.
+function fcSamePersonNominaIps(nomina, ips) {
+  const a = fcNameTokens(nomina?.apellidos || nomina?.['fc-apellidos']);
+  const b = fcNameTokens(ips?.cotizante?.apellido);
+  if (!a.size || !b.size) return true; // sin datos para comparar: no bloquear
+  return [...a].some(token => b.has(token));
+}
+
 function fcEnsureEmployerId(record) {
   const ideEl = document.getElementById('fc-idempleador');
   if (!ideEl || ideEl.value.trim()) return '';
@@ -1089,6 +1105,7 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
     let funcionarios = [];
     let funcionariosError = null;
     let inNomina = false;
+    let nominaRecord = null;
     showToast('Buscando primero en nómina de funcionarios…', 10000);
     try {
       if (typeof remote.searchFuncionario !== 'function') {
@@ -1118,6 +1135,7 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
       }
       fcApplyLookupRecord(funcionarios[0], 'funcionarios', cedula);
       inNomina = true;
+      nominaRecord = funcionarios[0];
       // La nómina no trae CECOT ni ID de empleador: se completan con IPS.
     }
 
@@ -1183,6 +1201,12 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
     if (ipsRecords.length) {
       if (!fcShowLookupJson(ipsRecords[0], 'ips', cedula)) {
         showToast('⚠ El resultado IPS no corresponde a la cédula actual; no se aplicó', 5000);
+        return;
+      }
+      // La misma cédula puede ser otra persona en IPS (p. ej. documentos de
+      // extranjero): no mezclar su CECOT con los datos de la nómina.
+      if (inNomina && !fcSamePersonNominaIps(nominaRecord, ipsRecords[0])) {
+        showToast('✓ Encontrado en nómina; ⚠ IPS devuelve otra persona para esta cédula: no se aplicó su CECOT ni empleador', 9000);
         return;
       }
       const filled = fcApplyLookupRecord(ipsRecords[0], 'ips', cedula);

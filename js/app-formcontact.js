@@ -18,7 +18,7 @@ const FC_FIELD_IDS = [
   'fc-empresa', 'fc-cargo', 'fc-salario',
   'fc-ciudad-l', 'fc-barrio-l', 'fc-direccion-l', 'fc-lineabaja',
   'fc-referencias', 'fc-monto', 'fc-plazo', 'fc-etapa',
-  'fc-cecot', 'fc-idempleador'
+  'fc-cecot', 'fc-idempleador', 'fc-codempleador'
 ];
 
 const STAGES = ['EN_PROCESO', 'APROBADO', 'OFERTA_REALIZADA', 'NUEVOS', 'RECHAZADOS'];
@@ -935,7 +935,11 @@ function fcApplyLookupRecord(record, source, cedula) {
     'fc-salario': fcLookupText(record?.['fc-salario'], record?.ingreso_ultimo_mes),
     'fc-idempleador': fcLookupText(
       employer?.ide_empleador_numerico, employer?.ide_empleador_id
-    )
+    ),
+    // Código visible del empleador en IPS: permite reutilizar su ID exacto.
+    'fc-codempleador': /^\d{4}-\d{2}-\d{5}$/.test(String(employer?.ide_empleador || ''))
+      ? employer.ide_empleador
+      : ''
   };
   const data = formRead();
   let filled = 0;
@@ -956,6 +960,88 @@ function fcApplyLookupRecord(record, source, cedula) {
   }
   fcSaveData();
   return filled;
+}
+
+// IPS retiró el servicio que daba el ID interno del empleador. pc-home lo toma de
+// la respuesta cuando aparece y lo recuerda; si aun así falta, se usa el de otro
+// cliente guardado de la MISMA empresa (aviso para verificarlo).
+function fcEmployerNameKey(value) {
+  return String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/^\d{3}\s*-\s*/, '')            // "003-MINISTERIO..." (código de entidad)
+    .replace(/\b(S\.?\s*A\.?|S\.?\s*R\.?\s*L\.?|SAECA|SAE|LTDA)\b\.?/g, ' ')
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim();
+}
+
+function fcEmployerNamesMatch(a, b) {
+  const ka = fcEmployerNameKey(a);
+  const kb = fcEmployerNameKey(b);
+  if (!ka || !kb) return false;
+  if (ka === kb) return true;
+  const [shorter, longer] = ka.length <= kb.length ? [ka, kb] : [kb, ka];
+  return shorter.length >= 10 && ` ${longer} `.includes(` ${shorter} `);
+}
+
+function fcEnsureEmployerId(record) {
+  const ideEl = document.getElementById('fc-idempleador');
+  if (!ideEl || ideEl.value.trim()) return '';
+  const employer = fcPickIpsEmployer(record);
+  const code = String(employer?.ide_empleador || '').trim();
+  // 1) Mismo código de empleador IPS en otro cliente: coincidencia exacta.
+  if (/^\d{4}-\d{2}-\d{5}$/.test(code)) {
+    const byCode = new Set();
+    clientsLoad().forEach(client => {
+      const id = String(client['fc-idempleador'] || '').trim();
+      if (client.id !== fc_activeClientId && client['fc-codempleador'] === code && /^[0-9]{1,10}$/.test(id)) {
+        byCode.add(id);
+      }
+    });
+    if (byCode.size === 1) {
+      const [id] = byCode;
+      ideEl.value = id;
+      const data = formRead();
+      data['fc-idempleador'] = id;
+      formWrite(data);
+      if (String(data['fc-cecot'] || '').trim()) generateIpsUrl(true);
+      fcSaveData();
+      return `ID empleador ${id} del mismo empleador (${code}) en otro cliente`;
+    }
+  }
+  // 2) Misma razón social en otros clientes (sólo si todos coinciden).
+  const names = [employer?.nombre, document.getElementById('fc-empresa')?.value]
+    .map(value => String(value || '').trim())
+    .filter(Boolean);
+  const votes = new Map();
+  if (names.length) {
+    clientsLoad().forEach(client => {
+      const id = String(client['fc-idempleador'] || '').trim();
+      if (client.id === fc_activeClientId || !/^[0-9]{1,10}$/.test(id) || !client['fc-empresa']) return;
+      if (names.some(name => fcEmployerNamesMatch(name, client['fc-empresa']))) {
+        votes.set(id, (votes.get(id) || 0) + 1);
+      }
+    });
+  }
+  // Una misma razón social puede tener varios registros patronales (p. ej. tres
+  // "RETAIL S.A." con IDs distintos): sólo se completa si TODOS coinciden.
+  const ids = [...votes.keys()];
+  if (ids.length !== 1) {
+    if (ids.length > 1) {
+      return `la empresa tiene varios ID de empleador posibles (${ids.slice(0, 4).join(', ')}): elige el correcto`;
+    }
+    return employer?.ide_empleador
+      ? `IPS no publica el ID de empleador de ${employer.ide_empleador}: complétalo a mano`
+      : '';
+  }
+  const best = [ids[0], votes.get(ids[0])];
+  ideEl.value = best[0];
+  const data = formRead();
+  data['fc-idempleador'] = best[0];
+  formWrite(data);
+  if (String(data['fc-cecot'] || '').trim()) generateIpsUrl(true);
+  fcSaveData();
+  return `ID empleador ${best[0]} tomado de otro cliente de la misma empresa: verifícalo`;
 }
 
 let fcIpsRetryTimer = null;
@@ -1002,6 +1088,7 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
 
     let funcionarios = [];
     let funcionariosError = null;
+    let inNomina = false;
     showToast('Buscando primero en nómina de funcionarios…', 10000);
     try {
       if (typeof remote.searchFuncionario !== 'function') {
@@ -1029,22 +1116,19 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
         showToast('⚠ Nómina devolvió datos que no coinciden con la cédula', 5000);
         return;
       }
-      const filled = fcApplyLookupRecord(funcionarios[0], 'funcionarios', cedula);
-      showToast(
-        filled
-          ? '✓ Encontrado en nómina de funcionarios; datos completados'
-          : '✓ Encontrado en nómina de funcionarios',
-        5000
-      );
-      return;
+      fcApplyLookupRecord(funcionarios[0], 'funcionarios', cedula);
+      inNomina = true;
+      // La nómina no trae CECOT ni ID de empleador: se completan con IPS.
     }
 
     let ipsRecords = fcGetCachedIpsRecords(cedula);
     if (ipsRecords === null) {
       showToast(
-        funcionariosError
-          ? 'No se pudo verificar la nómina; consultando IPS…'
-          : 'No se encontró en nómina; consultando IPS…',
+        inNomina
+          ? '✓ Encontrado en nómina; consultando IPS para CECOT e ID empleador…'
+          : funcionariosError
+            ? 'No se pudo verificar la nómina; consultando IPS…'
+            : 'No se encontró en nómina; consultando IPS…',
         10000
       );
 
@@ -1083,11 +1167,15 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
             void fcSearchByCedula(cedula, { ipsRetry: ipsRetry + 1 });
           }, seconds * 1000);
         } else {
-          showToast(`⚠ ${fcLookupErrorMessage(error)}`, 5000);
+          showToast(
+            (inNomina ? '✓ Datos de nómina completados, pero sin CECOT: ' : '⚠ ')
+              + fcLookupErrorMessage(error),
+            inNomina ? 7000 : 5000
+          );
         }
         return;
       }
-    } else {
+    } else if (!inNomina) {
       showToast('No se encontró en nómina; usando datos IPS validados previamente…', 5000);
     }
 
@@ -1098,16 +1186,22 @@ async function fcSearchByCedula(cedula, { ipsRetry = 0 } = {}) {
         return;
       }
       const filled = fcApplyLookupRecord(ipsRecords[0], 'ips', cedula);
+      const employerNote = fcEnsureEmployerId(ipsRecords[0]);
       const viability = fcIpsViability(ipsRecords[0]);
       showToast(
-        `${viability.ok ? '✓' : '⚠'} Encontrado en IPS: ${viability.text}`
-          + (funcionariosError ? ' (no se pudo verificar la nómina)' : ''),
-        viability.ok ? 5000 : 8000
+        `${viability.ok ? '✓' : '⚠'} ${inNomina ? 'Nómina + IPS' : 'Encontrado en IPS'}: ${viability.text}`
+          + (funcionariosError ? ' (no se pudo verificar la nómina)' : '')
+          + (employerNote ? ` · ${employerNote}` : ''),
+        viability.ok && !employerNote ? 5000 : 9000
       );
       if (!filled) console.info('[FC] La coincidencia no agregó campos porque ya estaban completos.');
       return;
     }
 
+    if (inNomina) {
+      showToast('✓ Encontrado en nómina; datos completados (no figura en IPS: sin CECOT)', 7000);
+      return;
+    }
     showToast(
       funcionariosError
         ? '⚠ No potable: sin registro en IPS (no se pudo verificar la nómina)'

@@ -25,7 +25,7 @@
     'fc-estadocivil', 'fc-celular', 'fc-ciudad-p', 'fc-barrio-p', 'fc-direccion-p',
     'fc-empresa', 'fc-cargo', 'fc-salario', 'fc-ciudad-l', 'fc-barrio-l', 'fc-direccion-l',
     'fc-lineabaja', 'fc-referencias', 'fc-monto', 'fc-plazo', 'fc-etapa', 'fc-cecot',
-    'fc-idempleador', '_entidades', '_remoteSynced'
+    'fc-idempleador', 'fc-codempleador', '_entidades', '_remoteSynced'
   ];
 
   let cache = null;       // array de clientes decodificados

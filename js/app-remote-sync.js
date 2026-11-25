@@ -377,12 +377,16 @@ async function fetchJson(path, query = {}) {
   try { return JSON.parse(text); } catch { throw new Error('remote_invalid_json'); }
 }
 
-async function fetchPublicJson(path) {
+// Nómina: la API exige el token (antes era pública y exponía datos personales).
+async function fetchFuncionarioJson(path) {
   const cfg = remoteLoadConfig();
   const base = buildBaseUrl(cfg);
   if (!base) throw new Error('remote_not_configured');
   const endpoint = path.startsWith('/') ? path : `/${path}`;
-  const res = await fetchWithTimeout(base + endpoint, { method: 'GET', headers: { 'Accept': 'application/json' } });
+  const res = await fetchWithTimeout(base + endpoint, {
+    method: 'GET',
+    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${cfg.token || ''}` }
+  });
   const text = await res.text();
   if (!res.ok) throw new Error('remote_error_' + res.status);
   if (!text) return null;
@@ -424,7 +428,7 @@ async function remoteSearchFuncionario(cedula) {
   const path = (cfg.endpoints && cfg.endpoints.funcionarios) || '/funcionarios';
   let payload;
   try {
-    payload = await fetchPublicJson(`${path.replace(/\/$/, '')}/${encodeURIComponent(digits)}`);
+    payload = await fetchFuncionarioJson(`${path.replace(/\/$/, '')}/${encodeURIComponent(digits)}`);
   } catch (error) {
     if (error.message === 'remote_error_404') return [];
     throw error;

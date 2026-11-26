@@ -2340,3 +2340,34 @@ a.ref-card:hover .ref-arrow { color: var(--accent); }
 .rs-rejected-empty { font-size: 13px; color: var(--text-muted); }
 .search-limit-field input { width: 90px; }
 .search-more { text-align: center; padding: 10px; font-size: 13px; color: var(--text-secondary); }
+
+/* Bloqueada por ciudad (rojo) y Market habilitado en el interior (verde) */
+.entity-check { position: relative; }
+.entity-check.entity-blocked,
+.entity-check.entity-blocked.entity-disabled {
+  opacity: 1;
+  filter: none;
+  background: #fdecea;
+  border-color: #d93025;
+}
+.entity-check.entity-blocked .entity-check-name { color: #a50e0e; font-weight: 700; }
+.entity-check.entity-blocked .entity-check-box { border-color: #d93025; background: #f9d2ce; }
+.entity-check.entity-blocked .entity-check-box::after {
+  background: linear-gradient(to bottom right, transparent calc(50% - 1px), #d93025 50%, transparent calc(50% + 1px));
+}
+.entity-check.entity-city-ok { background: #e6f4ea; border-color: #1e8e3e; }
+.entity-check.entity-city-ok .entity-check-name { color: #137333; font-weight: 700; }
+.entity-reason-tip {
+  position: fixed;
+  z-index: 1000;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #202124;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+  pointer-events: none;
+}
+.entity-reason-tip[hidden] { display: none; }

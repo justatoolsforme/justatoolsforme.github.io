@@ -1575,6 +1575,112 @@ function cityMatchesDepartment(city, departmentNames) {
   });
 }
 
+// ── Ciudades por entidad (js/app-entity-cities.js) ─────────────────────────
+// Japonesa: bloqueada si la ciudad personal o laboral está en su lista.
+// Market: Asunción/Central o, en el interior, sólo las ciudades habilitadas.
+const FC_CITY_ABBREVIATIONS = {
+  gral: 'general', gral_: 'general', cnel: 'coronel', dr: 'doctor', pdte: 'presidente',
+  tte: 'teniente', mcal: 'mariscal', sto: 'santo', sta: 'santa', col: 'colonia',
+  cap: 'capitan', cptan: 'capitan', com: 'compania', cia: 'compania'
+};
+
+function fcCityKey(value) {
+  return String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[°º]/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map(token => FC_CITY_ABBREVIATIONS[token] || token)
+    .join(' ');
+}
+
+// Variantes del texto escrito: completo y sin el sufijo " - Depto", "(...)" o ", ...".
+function fcCityCandidates(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  const parts = [raw, raw.split(/\s[-–]\s/)[0], raw.split('(')[0], raw.split(',')[0]];
+  return [...new Set(parts.map(fcCityKey).filter(Boolean))];
+}
+
+function fcBuildCityIndex(groups, extra = {}) {
+  const index = new Map();
+  const addEntry = (entry, info) => {
+    const nombre = typeof entry === 'string' ? entry : entry?.nombre;
+    if (!nombre) return;
+    const aliases = typeof entry === 'string' ? [] : (entry.alias || []);
+    [nombre, ...aliases].forEach(name => {
+      const key = fcCityKey(name);
+      if (key && !index.has(key)) index.set(key, { nombre, ...info });
+    });
+  };
+  Object.entries(groups || {}).forEach(([group, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach(entry => addEntry(entry, { ...extra, grupo: group }));
+    } else {
+      fcBuildCityIndex(value, { ...extra, region: group }).forEach((info, key) => {
+        if (!index.has(key)) index.set(key, info);
+      });
+    }
+  });
+  return index;
+}
+
+let fcEntityCityIndexes = null;
+function fcGetEntityCityIndexes() {
+  if (fcEntityCityIndexes) return fcEntityCityIndexes;
+  const data = window.TUFI_ENTITY_CITIES || {};
+  fcEntityCityIndexes = {
+    japonesa: fcBuildCityIndex(data.JAPONESA?.restringidas),
+    market: fcBuildCityIndex(data.MARKET?.habilitadas_interior)
+  };
+  return fcEntityCityIndexes;
+}
+
+function fcFindCity(index, value) {
+  for (const key of fcCityCandidates(value)) {
+    if (index.has(key)) return index.get(key);
+  }
+  return null;
+}
+
+function fcEntityCityStatus() {
+  const personal = document.getElementById('fc-ciudad-p')?.value.trim() || '';
+  const laboral = document.getElementById('fc-ciudad-l')?.value.trim() || '';
+  const { japonesa, market } = fcGetEntityCityIndexes();
+
+  const japonesaReasons = [];
+  [['personal', personal], ['laboral', laboral]].forEach(([kind, city]) => {
+    const hit = city && fcFindCity(japonesa, city);
+    if (hit) {
+      japonesaReasons.push(`Ciudad ${kind} «${city}» restringida (${hit.grupo}${hit.region ? ', ' + hit.region : ''})`);
+    }
+  });
+
+  let marketStatus;
+  if (!personal) {
+    marketStatus = { state: 'unknown', reason: '' };
+  } else if (cityMatchesDepartment(personal, ['ASUNCIÓN', 'CENTRAL']) || cityMatchesAny(personal, ['asuncion', 'asunción', 'central'])) {
+    marketStatus = { state: 'central', reason: '' };
+  } else {
+    const hit = fcFindCity(market, personal);
+    marketStatus = hit
+      ? { state: 'interior', reason: `Market habilitado: ciudad personal «${personal}» en zona ${hit.grupo}` }
+      : { state: 'blocked', reason: `Market no habilitado: la ciudad personal «${personal}» no es de Asunción/Central ni de las zonas del interior habilitadas` };
+  }
+
+  return {
+    japonesa: { restricted: japonesaReasons.length > 0, reason: japonesaReasons.length ? `Japonesa: ${japonesaReasons.join(' · ')}` : '' },
+    market: marketStatus
+  };
+}
+
+function fcMarketCityAllowed(status) {
+  return status.market.state === 'central' || status.market.state === 'interior';
+}
+
 function getEntityAvailabilityMap() {
   const city = document.getElementById('fc-ciudad-p')?.value || '';
   const company = document.getElementById('fc-empresa')?.value || '';
@@ -1598,9 +1704,12 @@ function getEntityAvailabilityMap() {
     return ents;
   }
 
+  const cityStatus = fcEntityCityStatus();
+
   if (salaryNum !== null && salaryNum < FC_ENTITY_RULES.minSalary) {
     document.querySelectorAll('input[name="entidad"]').forEach(cb => {
-      const enabled = ['TU_FINANCIERA', 'TKING', 'MARKET'].includes(cb.value);
+      let enabled = ['TU_FINANCIERA', 'TKING', 'MARKET'].includes(cb.value);
+      if (cb.value === 'MARKET') enabled = fcMarketCityAllowed(cityStatus);
       ents.set(cb.value, enabled);
     });
     return ents;
@@ -1612,7 +1721,9 @@ function getEntityAvailabilityMap() {
     let enabled = true;
 
     if (hasSpecialEmpresa) {
-      if (value === 'SERFIN' || value === 'MARKET') {
+      if (value === 'MARKET') {
+        enabled = fcMarketCityAllowed(cityStatus);
+      } else if (value === 'SERFIN') {
         const cityMatchesCentralOrAsuncion = cityMatchesDepartment(city, ['ASUNCIÓN', 'CENTRAL']) || cityMatchesAny(city, ['asuncion', 'asunción', 'central']);
         enabled = cityMatchesCentralOrAsuncion;
       } else {
@@ -1637,7 +1748,11 @@ function getEntityAvailabilityMap() {
       if (value === 'SERFIN' && hasSpecialEmpresa) {
         enabled = cityMatchesDepartmentList || cityMatchesExplicitList;
       }
+      if (value === 'MARKET') enabled = fcMarketCityAllowed(cityStatus);
     }
+
+    // Japonesa: restricción por ciudad personal o laboral (prevalece).
+    if (value === 'JAPONESA' && cityStatus.japonesa.restricted) enabled = false;
 
     ents.set(value, enabled);
   });
@@ -1660,7 +1775,64 @@ function applyEntityAvailabilityRules() {
 
     cb.closest('label')?.classList.toggle('entity-disabled', !enabled);
   });
+  fcApplyEntityCityMarks(map);
 }
+
+// Rojo = bloqueada por ciudad (hover: motivo); verde = Market habilitado en el interior.
+function fcApplyEntityCityMarks(map) {
+  const status = fcEntityCityStatus();
+  const marks = {
+    JAPONESA: status.japonesa.restricted ? { cls: 'entity-blocked', reason: status.japonesa.reason } : null,
+    MARKET: status.market.state === 'blocked' ? { cls: 'entity-blocked', reason: status.market.reason }
+      : status.market.state === 'interior' && map.get('MARKET') !== false ? { cls: 'entity-city-ok', reason: status.market.reason }
+        : null
+  };
+  document.querySelectorAll('input[name="entidad"]').forEach(cb => {
+    const label = cb.closest('label');
+    if (!label) return;
+    const mark = marks[cb.value] || null;
+    label.classList.toggle('entity-blocked', mark?.cls === 'entity-blocked');
+    label.classList.toggle('entity-city-ok', mark?.cls === 'entity-city-ok');
+    if (mark?.reason) {
+      label.dataset.reason = mark.reason;
+      label.setAttribute('aria-label', `${cb.value}: ${mark.reason}`);
+    } else {
+      delete label.dataset.reason;
+      label.removeAttribute('aria-label');
+    }
+  });
+}
+
+// Tooltip flotante (position: fixed) para el motivo: las tarjetas del formulario
+// tienen overflow: hidden y recortarían un tooltip CSS.
+const fcEntityTip = (() => {
+  const tip = document.createElement('div');
+  tip.className = 'entity-reason-tip';
+  tip.setAttribute('role', 'tooltip');
+  tip.hidden = true;
+  document.body.appendChild(tip);
+  return tip;
+})();
+
+document.addEventListener('mouseover', event => {
+  const label = event.target.closest?.('.entity-check[data-reason]');
+  if (!label) { fcEntityTip.hidden = true; return; }
+  fcEntityTip.textContent = label.dataset.reason;
+  fcEntityTip.hidden = false;
+  const box = label.getBoundingClientRect();
+  const tipBox = fcEntityTip.getBoundingClientRect();
+  const left = Math.min(Math.max(8, box.left), window.innerWidth - tipBox.width - 8);
+  const above = box.top - tipBox.height - 8;
+  fcEntityTip.style.left = `${left}px`;
+  fcEntityTip.style.top = `${above >= 8 ? above : box.bottom + 8}px`;
+});
+document.addEventListener('scroll', () => { fcEntityTip.hidden = true; }, true);
+
+// En móvil no hay hover: al tocar una entidad bloqueada se muestra el motivo.
+document.addEventListener('click', event => {
+  const label = event.target.closest?.('.entity-check.entity-blocked');
+  if (label?.dataset.reason) showToast(`⚠ ${label.dataset.reason}`, 6000);
+});
 
 function tryFillFromCompany(opts = {}) {
   const empresa = document.getElementById('fc-empresa')?.value.trim();
@@ -2584,7 +2756,7 @@ window.addEventListener('beforeunload', e => {
     });
   });
 
-  ['fc-ciudad-p', 'fc-empresa', 'fc-salario', 'fc-fechanac'].forEach(id => {
+  ['fc-ciudad-p', 'fc-ciudad-l', 'fc-empresa', 'fc-salario', 'fc-fechanac'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('input', () => {

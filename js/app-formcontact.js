@@ -1803,6 +1803,55 @@ function fcApplyEntityCityMarks(map) {
   });
 }
 
+// ── Código empleador IPS → ID Empleador ───────────────────────────────────
+// Al escribir/pegar un código ####-##-##### se busca su ID interno (pc-home lo
+// resuelve en IPS y lo recuerda). Sólo completa el ID si está vacío o si venía
+// del código anterior, para no pisar uno escrito a mano.
+let fcEmployerCodeRequest = 0;
+let fcEmployerIdFromCode = '';
+
+async function fcResolveEmployerCode() {
+  const codeEl = document.getElementById('fc-codempleador');
+  const ideEl = document.getElementById('fc-idempleador');
+  if (!codeEl || !ideEl) return;
+  const code = codeEl.value.trim();
+  if (!/^\d{4}-\d{2}-\d{5}$/.test(code)) return;
+  const current = ideEl.value.trim();
+  if (current && current !== fcEmployerIdFromCode) return;
+  const remote = window.RemoteSync;
+  if (!fcSyncLookupEnabled() || typeof remote?.searchEmployerId !== 'function') return;
+
+  const requestId = ++fcEmployerCodeRequest;
+  showToast(`Buscando ID del empleador ${code}…`, 6000);
+  try {
+    const result = await remote.searchEmployerId(code);
+    if (requestId !== fcEmployerCodeRequest || codeEl.value.trim() !== code) return;
+    if (!result) {
+      showToast(`⚠ IPS no tiene un empleador con el código ${code}`, 6000);
+      return;
+    }
+    ideEl.value = String(result.id);
+    fcEmployerIdFromCode = String(result.id);
+    const data = formRead();
+    data['fc-idempleador'] = String(result.id);
+    formWrite(data);
+    if (String(data['fc-cecot'] || '').trim()) generateIpsUrl(true);
+    fcSaveData();
+    showToast(`✓ ID empleador ${result.id} (código ${code})`, 5000);
+  } catch (error) {
+    if (requestId !== fcEmployerCodeRequest) return;
+    fcNoteLookupError(error);
+    showToast(`⚠ No se pudo obtener el ID del empleador: ${fcLookupErrorMessage(error)}`, 6000);
+  }
+}
+
+document.getElementById('fc-codempleador')?.addEventListener('input', event => {
+  // Acepta el código sin guiones o con espacios/puntos (09056100198): normaliza a ####-##-#####.
+  const digits = event.target.value.replace(/\D/g, '');
+  if (digits.length === 11) event.target.value = `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+  void fcResolveEmployerCode();
+});
+
 // Tooltip flotante (position: fixed) para el motivo: las tarjetas del formulario
 // tienen overflow: hidden y recortarían un tooltip CSS.
 const fcEntityTip = (() => {

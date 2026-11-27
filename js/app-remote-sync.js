@@ -412,6 +412,24 @@ async function remoteSearchByCedula(cedula) {
   return records.map(normalizeRemoteClient);
 }
 
+// Código visible de empleador IPS (####-##-#####) → ID interno (p. ej. 131906).
+async function remoteSearchEmployerId(code) {
+  const cfg = remoteLoadConfig();
+  if (!cfg?.enabled) throw new Error('remote_not_enabled');
+  const value = String(code || '').trim();
+  if (!/^\d{4}-\d{2}-\d{5}$/.test(value)) throw new Error('invalid_employer_code');
+  const path = (cfg.endpoints && cfg.endpoints.search) || '/search';
+  let payload;
+  try {
+    payload = await fetchJson(path, { empleador: value });
+  } catch (error) {
+    if (/remote_error_404\b/.test(String(error?.message || ''))) return null;
+    throw error;
+  }
+  const id = Number(payload?.ide_empleador_id);
+  return Number.isInteger(id) && id > 0 ? { id, fuente: payload?.fuente || '' } : null;
+}
+
 async function remoteSearchIp({ cecot = '', idempleador = '' } = {}) {
   const cfg = remoteLoadConfig();
   if (!cfg?.enabled) throw new Error('remote_not_enabled');
@@ -874,6 +892,7 @@ window.RemoteSync = {
   queueClient: remoteQueueClient,
   renderRejected: renderRejectedClients,
   searchByCedula: remoteSearchByCedula,
+  searchEmployerId: remoteSearchEmployerId,
   searchIp: remoteSearchIp,
   searchFuncionario: remoteSearchFuncionario,
   notifyPdfGenerated: handlePdfNotification,
